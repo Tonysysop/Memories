@@ -1,0 +1,56 @@
+import { useState, useEffect } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import DashboardSidebar from "./DashboardSidebar";
+import CreateEventDialog from "./CreateEventDialog";
+import { useEvents } from "@/hooks/useEvent";
+import type { EventType } from "@/types/event";
+
+const DashboardLayout = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { createEvent } = useEvents();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  const handleCreateEvent = (data: {
+    name: string;
+    type: EventType;
+    customType?: string;
+    coverImage?: string;
+    eventDate?: string;
+  }) => {
+    createEvent(data);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar onCreateEvent={() => setIsCreateDialogOpen(true)} />
+      
+      <main className="ml-64 p-8">
+        <Outlet />
+      </main>
+
+      <CreateEventDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={handleCreateEvent}
+      />
+    </div>
+  );
+};
+
+export default DashboardLayout;
