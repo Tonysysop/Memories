@@ -1,22 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { MemoryEvent, EventUpload } from '@/types/event';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { MemoryEvent } from '@/types/event';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 export const useEvents = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState<MemoryEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchEvents = useCallback(async () => {
-    if (!user) {
-      setEvents([]);
-      setIsLoading(false);
-      return;
-    }
+  // Fetch Events Query
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ['events', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
 
-    try {
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -24,8 +21,8 @@ export const useEvents = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      const mappedEvents: MemoryEvent[] = (data || []).map(e => ({
+
+      return (data || []).map(e => ({
         id: e.id,
         hostId: e.user_id,
         name: e.title,
@@ -38,250 +35,186 @@ export const useEvents = () => {
         isUploadsEnabled: e.is_uploads_enabled,
         isMessagesEnabled: e.is_messages_enabled,
         isLocked: e.is_locked,
-        uploads: [] 
-      }));
-      
-      setEvents(mappedEvents);
-    } catch (error: any) {
-      console.error('Error fetching events:', error);
-      toast.error('Failed to load events');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user]);
+        uploads: []
+      })) as MemoryEvent[];
+    },
+    enabled: !!user,
+  });
 
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  // Create Event Mutation
+  const createEventMutation = useMutation({
+    mutationFn: async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked'>) => {
+      if (!user) throw new Error('User not authenticated');
 
-  const createEvent = async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked'>) => {
-    if (!user) return null;
+      const slug = `${eventData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
 
-    const slug = `${eventData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
-
-    try {
-        const { data, error } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .insert({
-            user_id: user.id,
-            title: eventData.name,
-            event_type: eventData.type,
-            custom_type: eventData.customType,
-            cover_image: eventData.coverImage,
-            slug: slug,
-            event_date: eventData.eventDate,
-            is_uploads_enabled: true,
-            is_messages_enabled: true,
-            is_locked: false
+          user_id: user.id,
+          title: eventData.name,
+          event_type: eventData.type,
+          custom_type: eventData.customType,
+          cover_image: eventData.coverImage,
+          slug: slug,
+          event_date: eventData.eventDate,
+          is_uploads_enabled: true,
+          is_messages_enabled: true,
+          is_locked: false
         })
         .select()
         .single();
-        
-        if (error) throw error;
 
-        toast.success('Event created successfully!');
-        fetchEvents();
-        
-        // Map back to MemoryEvent interface
-        return {
-            id: data.id,
-            hostId: data.user_id,
-            name: data.title,
-            type: data.event_type,
-            customType: data.custom_type,
-            coverImage: data.cover_image,
-            shareCode: data.slug,
-            createdAt: data.created_at,
-            eventDate: data.event_date,
-            isUploadsEnabled: data.is_uploads_enabled,
-            isMessagesEnabled: data.is_messages_enabled,
-            isLocked: data.is_locked,
-            uploads: []
-        } as MemoryEvent;
-    } catch (error: any) {
-        toast.error(error.message || 'Failed to create event');
-        throw error;
+      if (error) throw error;
+      return {
+        id: data.id,
+        hostId: data.user_id,
+        name: data.title,
+        type: data.event_type,
+        customType: data.custom_type,
+        coverImage: data.cover_image,
+        shareCode: data.slug,
+        createdAt: data.created_at,
+        eventDate: data.event_date,
+        isUploadsEnabled: data.is_uploads_enabled,
+        isMessagesEnabled: data.is_messages_enabled,
+        isLocked: data.is_locked,
+        uploads: []
+      } as MemoryEvent;
+    },
+    onSuccess: () => {
+      toast.success('Event created successfully!');
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to create event');
     }
-  };
+  });
 
-  const updateEvent = async (id: string, updates: Partial<MemoryEvent>) => {
-    try {
-        const dbUpdates: any = {};
-        if (updates.name) dbUpdates.title = updates.name;
-        if (updates.type) dbUpdates.event_type = updates.type;
-        if (updates.customType) dbUpdates.custom_type = updates.customType;
-        if (updates.coverImage) dbUpdates.cover_image = updates.coverImage;
-        if (updates.eventDate) dbUpdates.event_date = updates.eventDate;
-        if (typeof updates.isLocked !== 'undefined') dbUpdates.is_locked = updates.isLocked;
-        if (typeof updates.isUploadsEnabled !== 'undefined') dbUpdates.is_uploads_enabled = updates.isUploadsEnabled;
-        if (typeof updates.isMessagesEnabled !== 'undefined') dbUpdates.is_messages_enabled = updates.isMessagesEnabled;
-        
-        const { error } = await supabase
-            .from('events')
-            .update(dbUpdates)
-            .eq('id', id);
+  // Update Event Mutation
+  const updateEventMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<MemoryEvent> }) => {
+      const dbUpdates: any = {};
+      if (updates.name) dbUpdates.title = updates.name;
+      if (updates.type) dbUpdates.event_type = updates.type;
+      if (updates.customType) dbUpdates.custom_type = updates.customType;
+      if (updates.coverImage) dbUpdates.cover_image = updates.coverImage;
+      if (updates.eventDate) dbUpdates.event_date = updates.eventDate;
+      if (typeof updates.isLocked !== 'undefined') dbUpdates.is_locked = updates.isLocked;
+      if (typeof updates.isUploadsEnabled !== 'undefined') dbUpdates.is_uploads_enabled = updates.isUploadsEnabled;
+      if (typeof updates.isMessagesEnabled !== 'undefined') dbUpdates.is_messages_enabled = updates.isMessagesEnabled;
 
-        if (error) throw error;
+      const { error } = await supabase
+        .from('events')
+        .update(dbUpdates)
+        .eq('id', id);
 
-        toast.success('Event updated');
-        fetchEvents();
-    } catch (error: any) {
-        toast.error('Failed to update event');
-        console.error(error);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Event updated');
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: (error: any) => {
+      toast.error('Failed to update event');
+      console.error(error);
     }
-  };
+  });
 
-  const deleteEvent = async (id: string) => {
-    if (!user) {
-        console.error('Delete attempted without user session');
-        return false;
+  // Delete Event Mutation
+  const deleteEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const cleanId = id.trim();
+
+      // First delete associated messages
+      const { error: msgError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('event_id', cleanId);
+
+      if (msgError) throw msgError;
+
+      // Then delete associated media
+      const { error: mediaError } = await supabase
+        .from('media')
+        .delete()
+        .eq('event_id', cleanId);
+
+      if (mediaError) throw mediaError;
+
+      // Finally delete the event
+      const { data, error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', cleanId)
+        .eq('user_id', user.id)
+        .select();
+
+      if (error) throw error;
+      return (data?.length || 0) > 0;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: (error) => {
+      console.error('Delete failed', error);
     }
-    
-    try {
-        const cleanId = id.trim();
-        console.log('--- DELETION AUDIT START ---');
-        console.log('Target Event ID:', cleanId);
-        console.log('Current User ID:', user.id);
+  });
 
-        // Ownership Verification Check
-        const { data: ownerCheck } = await supabase
-            .from('events')
-            .select('user_id')
-            .eq('id', cleanId)
-            .maybeSingle();
-        
-        console.log('Database Record Owner ID:', ownerCheck?.user_id);
-        
-        if (ownerCheck && ownerCheck.user_id !== user.id) {
-            console.warn('CRITICAL: Ownership mismatch detected! Record belongs to:', ownerCheck.user_id);
-        }
-
-        // First delete associated messages
-        const { error: msgError, status: msgStatus, count: msgCount } = await supabase
-            .from('messages')
-            .delete({ count: 'exact' })
-            .eq('event_id', cleanId);
-        
-        console.log('Delete messages result:', { status: msgStatus, count: msgCount, error: msgError });
-
-        if (msgError) {
-            console.error('Error deleting messages:', msgError);
-            throw msgError;
-        }
-
-        // Then delete associated media
-        const { error: mediaError, status: mediaStatus, count: mediaCount } = await supabase
-            .from('media')
-            .delete({ count: 'exact' })
-            .eq('event_id', cleanId);
-
-        console.log('Delete media result:', { status: mediaStatus, count: mediaCount, error: mediaError });
-
-        if (mediaError) {
-            console.error('Error deleting media:', mediaError);
-            throw mediaError;
-        }
-
-        // Finally delete the event
-        const { data: result, error, status } = await supabase
-            .from('events')
-            .delete()
-            .eq('id', cleanId)
-            .eq('user_id', user.id)
-            .select();
-
-        console.log('Delete final event result:', { status, rowsAffected: result?.length, error });
-
-        if (error) {
-            console.error('Supabase deletion error:', error);
-            throw error;
-        }
-
-        if (!result || result.length === 0) {
-            console.warn('STILL NO ROWS DELETED. Final attempt without user_id filter (dangerous but diagnostic)...');
-            // We won't actually do it yet, just log it.
-        }
-        
-        setEvents(prev => prev.filter(e => e.id !== cleanId));
-        return (result?.length || 0) > 0;
-    } catch (error: any) {
-        console.error('Comprehensive deletion failure:', error);
-        return false;
-    } finally {
-        console.log('--- DELETION AUDIT END ---');
-    }
-  };
-
+  // Verify Event Deleted (Helper)
   const verifyEventDeleted = async (id: string) => {
     const { data, error } = await supabase
       .from('events')
       .select('id')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (error) return false;
-    return data === null; // Returns true if record NO LONGER exists
+    return data === null;
   };
 
+  // Helper getters from cache
   const getEventByShareCode = (shareCode: string) => {
-     return events.find(e => e.shareCode === shareCode) || null;
+    return events.find(e => e.shareCode === shareCode) || null;
   };
 
   const getEventById = (id: string) => {
-      return events.find(e => e.id === id) || null;
+    return events.find(e => e.id === id) || null;
   };
 
-  const deleteUpload = async (eventId: string, uploadId: string) => {
-    // Find the upload to determine its type (media or message)
-    const event = events.find(e => e.id === eventId);
-    if (!event) return;
+  // Delete Upload Mutation
+  const deleteUploadMutation = useMutation({
+    mutationFn: async ({ eventId, uploadId }: { eventId: string, uploadId: string }) => {
+      // Just try to delete from messages, if 0 rows, try media.
+      const { error: msgError, count: msgCount } = await supabase.from('messages').delete({ count: 'exact' }).eq('id', uploadId);
+      if (msgError) throw msgError;
+      if (msgCount !== null && msgCount > 0) return;
 
-    const upload = event.uploads.find(u => u.id === uploadId);
-    if (!upload) return;
-
-    try {
-        let error;
-        if (upload.type === 'message') {
-            const { error: msgError } = await supabase.from('messages').delete().eq('id', uploadId);
-            error = msgError;
-        } else {
-            // It's media (photo/video)
-            const { error: mediaError } = await supabase.from('media').delete().eq('id', uploadId);
-            error = mediaError;
-            // TODO: Also delete file from Storage
-        }
-
-        if (error) throw error;
-        
-        toast.success('Content deleted');
-        
-        // Optimistically update local state
-        setEvents(prev => prev.map(e => {
-            if (e.id === eventId) {
-                return {
-                    ...e,
-                    uploads: e.uploads.filter(u => u.id !== uploadId)
-                };
-            }
-            return e;
-        }));
-
-    } catch (error: any) {
-        toast.error('Failed to delete content');
-        console.error(error);
+      const { error: mediaError } = await supabase.from('media').delete().eq('id', uploadId);
+      if (mediaError) throw mediaError;
+    },
+    onSuccess: () => {
+      toast.success('Content deleted');
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: (error: any) => {
+      toast.error('Failed to delete content');
+      console.error(error);
     }
-  };
+  });
 
   return {
     events,
     isLoading,
-    createEvent,
-    updateEvent,
-    deleteEvent,
+    createEvent: createEventMutation.mutateAsync,
+    updateEvent: (id: string, updates: Partial<MemoryEvent>) => updateEventMutation.mutateAsync({ id, updates }),
+    deleteEvent: deleteEventMutation.mutateAsync,
     verifyEventDeleted,
     getEventByShareCode,
     getEventById,
-    deleteUpload,
-    refreshEvents: fetchEvents,
+    deleteUpload: (eventId: string, uploadId: string) => deleteUploadMutation.mutateAsync({ eventId, uploadId }),
+    refreshEvents: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
   };
 };

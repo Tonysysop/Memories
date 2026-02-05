@@ -5,12 +5,14 @@ import DashboardSidebar from "./DashboardSidebar";
 import CreateEventDialog from "./CreateEventDialog";
 import { useEvents } from "@/hooks/useEvent";
 import type { EventType } from "@/types/event";
+import { cn } from "@/lib/utils";
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { createEvent } = useEvents();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -38,9 +40,18 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar onCreateEvent={() => setIsCreateDialogOpen(true)} />
-      
-      <main className="ml-64 p-8">
+      <DashboardSidebar
+        onCreateEvent={() => setIsCreateDialogOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
+
+      <main
+        className={cn(
+          "transition-all duration-300 p-8",
+          isSidebarCollapsed ? "ml-20" : "ml-64"
+        )}
+      >
         <Outlet />
       </main>
 

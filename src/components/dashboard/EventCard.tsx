@@ -1,25 +1,10 @@
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Calendar, 
-  Image as ImageIcon, 
-  MessageSquare, 
-  MoreVertical,
-  Eye,
-  Trash2,
-  Lock,
-  Unlock
-} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { Eye, Lock, Unlock, Trash2, Image as ImageIcon } from "lucide-react";
 import type { MemoryEvent } from "@/types/event";
 import { EVENT_TYPE_LABELS } from "@/types/event";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { format, isValid } from "date-fns";
 
 interface EventCardProps {
@@ -27,113 +12,119 @@ interface EventCardProps {
   onView: (event: MemoryEvent) => void;
   onDelete: (eventId: string) => void;
   onToggleLock: (eventId: string, isLocked: boolean) => void;
+  className?: string;
 }
 
-const EventCard = ({ event, onView, onDelete, onToggleLock }: EventCardProps) => {
-  const photoCount = event.uploads.filter(u => u.type === 'photo').length;
-  const videoCount = event.uploads.filter(u => u.type === 'video').length;
-  const messageCount = event.uploads.filter(u => u.type === 'message').length;
+const EventCard = ({
+  event,
+  onView,
+  onDelete,
+  onToggleLock,
+  className,
+}: EventCardProps) => {
+  const photoCount = event.uploads.filter((u) => u.type === 'photo').length;
+  const videoCount = event.uploads.filter((u) => u.type === 'video').length;
+  const messageCount = event.uploads.filter((u) => u.type === 'message').length;
+  const totalItems = photoCount + videoCount + messageCount;
+
+  const formattedDate =
+    event.eventDate && isValid(new Date(event.eventDate))
+      ? format(new Date(event.eventDate), 'MMM d, yyyy')
+      : null;
+
+  const description = [
+    formattedDate,
+    `${totalItems} memory items`
+  ].filter(Boolean).join(" • ");
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="relative h-24 bg-muted flex items-center justify-center overflow-hidden">
-        {event.coverImage ? (
-          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-background shadow-sm">
-            <img 
-              src={event.coverImage} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className={cn("w-full", className)}
+    >
+      <Card className="group relative h-full overflow-hidden rounded-2xl border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10">
+        <div className="relative aspect-video overflow-hidden bg-muted">
+          {event.coverImage ? (
+            <motion.img
+              src={event.coverImage}
               alt={event.name}
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
             />
-          </div>
-        ) : (
-          <ImageIcon className="w-8 h-8 text-muted-foreground/30" />
-        )}
-        {event.isLocked && (
-          <div className="absolute top-2 right-2">
-            <Badge variant="secondary" className="gap-1">
-              <Lock className="w-3 h-3" />
-              Locked
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      <CardContent className="p-3 pt-2 pb-1.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold truncate leading-tight">{event.name}</h3>
-            <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
-              {event.type === 'other' && event.customType 
-                ? event.customType 
-                : EVENT_TYPE_LABELS[event.type]}
-            </p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onView(event)}>
-                <Eye className="w-4 h-4 mr-2" />
-                View Event
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onToggleLock(event.id, !event.isLocked)}>
-                {event.isLocked ? (
-                  <>
-                    <Unlock className="w-4 h-4 mr-2" />
-                    Unlock Event
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4 mr-2" />
-                    Lock Event
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => onDelete(event.id)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Event
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Stats */}
-        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <ImageIcon className="w-4 h-4" />
-            {photoCount + videoCount}
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageSquare className="w-4 h-4" />
-            {messageCount}
-          </span>
-          {event.eventDate && isValid(new Date(event.eventDate)) && (
-            <span className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              {format(new Date(event.eventDate), 'MMM d')}
-            </span>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+              <ImageIcon className="h-12 w-12" />
+            </div>
           )}
-        </div>
-      </CardContent>
 
-      <CardFooter className="p-2 pt-0">
-        <Button 
-          variant="secondary" 
-          size="sm"
-          className="w-full h-8 text-xs"
-          onClick={() => onView(event)}
-        >
-          Manage
-        </Button>
-      </CardFooter>
-    </Card>
+          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+          <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 transition-all duration-300 group-hover:opacity-100">
+            <motion.button
+              onClick={() => onView(event)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 backdrop-blur-md transition-colors hover:bg-primary/90"
+              title="View Event"
+            >
+              <Eye className="h-5 w-5" />
+            </motion.button>
+
+            <motion.button
+              onClick={() => onToggleLock(event.id, !event.isLocked)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-secondary-foreground shadow-lg backdrop-blur-md transition-colors hover:bg-secondary/80"
+              title={event.isLocked ? "Unlock Event" : "Lock Event"}
+            >
+              {event.isLocked ? (
+                <Unlock className="h-5 w-5" />
+              ) : (
+                <Lock className="h-5 w-5" />
+              )}
+            </motion.button>
+
+            <motion.button
+              onClick={() => onDelete(event.id)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-lg backdrop-blur-md transition-colors hover:bg-destructive/90"
+              title="Delete Event"
+            >
+              <Trash2 className="h-5 w-5" />
+            </motion.button>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <h3 className="mb-2 text-xl font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary truncate">
+            {event.name}
+          </h3>
+          <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">
+            {description}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant="secondary"
+              className="bg-secondary/50 px-2 py-0.5 text-xs font-normal hover:bg-secondary"
+            >
+              {event.type === 'other' && event.customType
+                ? event.customType
+                : EVENT_TYPE_LABELS[event.type]}
+            </Badge>
+            {event.isLocked && (
+              <Badge
+                variant="outline"
+                className="border-primary/50 text-primary px-2 py-0.5 text-xs font-normal"
+              >
+                Locked
+              </Badge>
+            )}
+          </div>
+        </div>
+      </Card>
+    </motion.div>
   );
 };
 
