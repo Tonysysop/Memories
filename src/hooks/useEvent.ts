@@ -35,6 +35,7 @@ export const useEvents = () => {
         isUploadsEnabled: e.is_uploads_enabled,
         isMessagesEnabled: e.is_messages_enabled,
         isLocked: e.is_locked,
+        isLiveFeedEnabled: e.is_live_feed_enabled,
         uploads: []
       })) as MemoryEvent[];
     },
@@ -43,7 +44,7 @@ export const useEvents = () => {
 
   // Create Event Mutation
   const createEventMutation = useMutation({
-    mutationFn: async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked'>) => {
+    mutationFn: async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked' | 'isLiveFeedEnabled'>) => {
       if (!user) throw new Error('User not authenticated');
 
       const slug = `${eventData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
@@ -60,7 +61,8 @@ export const useEvents = () => {
           event_date: eventData.eventDate,
           is_uploads_enabled: true,
           is_messages_enabled: true,
-          is_locked: false
+          is_locked: false,
+          is_live_feed_enabled: false
         })
         .select()
         .single();
@@ -79,6 +81,7 @@ export const useEvents = () => {
         isUploadsEnabled: data.is_uploads_enabled,
         isMessagesEnabled: data.is_messages_enabled,
         isLocked: data.is_locked,
+        isLiveFeedEnabled: data.is_live_feed_enabled,
         uploads: []
       } as MemoryEvent;
     },
@@ -103,11 +106,13 @@ export const useEvents = () => {
       if (typeof updates.isLocked !== 'undefined') dbUpdates.is_locked = updates.isLocked;
       if (typeof updates.isUploadsEnabled !== 'undefined') dbUpdates.is_uploads_enabled = updates.isUploadsEnabled;
       if (typeof updates.isMessagesEnabled !== 'undefined') dbUpdates.is_messages_enabled = updates.isMessagesEnabled;
+      if (typeof updates.isLiveFeedEnabled !== 'undefined') dbUpdates.is_live_feed_enabled = updates.isLiveFeedEnabled;
 
       const { error } = await supabase
         .from('events')
         .update(dbUpdates)
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user?.id);
 
       if (error) throw error;
     },
@@ -186,7 +191,7 @@ export const useEvents = () => {
 
   // Delete Upload Mutation
   const deleteUploadMutation = useMutation({
-    mutationFn: async ({ eventId, uploadId }: { eventId: string, uploadId: string }) => {
+    mutationFn: async ({ uploadId }: { uploadId: string }) => {
       // Just try to delete from messages, if 0 rows, try media.
       const { error: msgError, count: msgCount } = await supabase.from('messages').delete({ count: 'exact' }).eq('id', uploadId);
       if (msgError) throw msgError;
@@ -214,7 +219,7 @@ export const useEvents = () => {
     verifyEventDeleted,
     getEventByShareCode,
     getEventById,
-    deleteUpload: (eventId: string, uploadId: string) => deleteUploadMutation.mutateAsync({ eventId, uploadId }),
+    deleteUpload: (uploadId: string) => deleteUploadMutation.mutateAsync({ uploadId }),
     refreshEvents: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
   };
 };

@@ -59,7 +59,7 @@ const HeroSection = () => {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-up" style={{ animationDelay: '0.4s' }}>
               <Button size="lg" className="text-base font-semibold px-8 py-6 glow-primary hover:scale-105 transition-transform" asChild>
-                <Link to="/auth">Create Your Event</Link>
+                <Link to="/auth?mode=signup">Create Your Event</Link>
               </Button>
               <Button size="lg" variant="outline" className="text-base font-medium px-8 py-6 hover:bg-secondary transition-colors">
                 See How It Works
