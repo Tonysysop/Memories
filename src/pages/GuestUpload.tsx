@@ -532,7 +532,7 @@ const GuestUpload = () => {
   }
 
   return (
-    <div className="min-h-screen relative flex flex-col">
+    <div className="min-h-screen relative flex flex-col dark bg-black">
       <FloatingHearts hearts={hearts} onComplete={removeHeart} />
       {/* Faded Backdrop */}
       <div className="fixed inset-0 z-0">
@@ -663,7 +663,7 @@ const GuestUpload = () => {
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     variant="outline"
-                    className="flex-1 rounded-full border-white/20 text-white hover:bg-white/10 hover:text-white"
+                    className="flex-1 rounded-full border-white/20 text-white bg-transparent hover:bg-white/10 hover:text-white"
                   >
                     Add More
                   </Button>
@@ -687,7 +687,7 @@ const GuestUpload = () => {
                 <Button
                   variant="outline"
                   onClick={() => setShowCommentBox(true)}
-                  className="w-full rounded-full border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
+                  className="w-full rounded-full border-white/20 text-white bg-transparent hover:bg-white/10 hover:text-white gap-2"
                 >
                   <MessageSquare className="w-4 h-4" />
                   Leave a Comment
@@ -705,7 +705,7 @@ const GuestUpload = () => {
                     <Button
                       variant="outline"
                       onClick={() => { setShowCommentBox(false); setMessage(""); }}
-                      className="flex-1 rounded-full border-white/20 text-white hover:bg-white/10 hover:text-white"
+                      className="flex-1 rounded-full border-white/20 text-white bg-transparent hover:bg-white/10 hover:text-white"
                     >
                       Cancel
                     </Button>
