@@ -12,7 +12,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import ThemeToggle from "../ThemeToggle";
-import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -28,12 +27,12 @@ interface DashboardSidebarProps {
 }
 
 const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSidebarProps) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate('/');
   };
 

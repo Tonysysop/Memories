@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NativeTabs } from "@/components/NativeTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,6 +29,7 @@ import { EVENT_TYPE_LABELS } from "@/types/event";
 import type { EventType, EventUpload } from "@/types/event";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
+import { Lightbox } from "@/components/Lightbox";
 
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,7 +40,6 @@ const EventDetail = () => {
   
   // All hooks must be at the top
   const [event, setEvent] = useState(id ? getEventById(id) : null);
-  const [isLoadingUploads, setIsLoadingUploads] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -60,6 +60,21 @@ const EventDetail = () => {
     }
   }, [event?.id]); // Update form when event record changes
 
+  // Lightbox state
+  const [lightbox, setLightbox] = useState({
+    isOpen: false,
+    currentIndex: 0,
+    items: [] as EventUpload[]
+  });
+
+  const openLightbox = (items: EventUpload[], index: number) => {
+    setLightbox({
+      isOpen: true,
+      currentIndex: index,
+      items
+    });
+  };
+
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -67,8 +82,7 @@ const EventDetail = () => {
     }
   }, [user, authLoading, navigate]);
 
-  const fetchUploads = async (eventId: string) => {
-      setIsLoadingUploads(true);
+   const fetchUploads = async (eventId: string) => {
       try {
           // Fetch Media
           const { data: mediaData } = await supabase
@@ -113,8 +127,6 @@ const EventDetail = () => {
 
       } catch (error) {
           console.error("Error fetching uploads", error);
-      } finally {
-          setIsLoadingUploads(false);
       }
   };
 
@@ -154,15 +166,26 @@ const EventDetail = () => {
     toast({ title: "Link copied!", description: "Share this link with your guests." });
   };
 
-  const handleToggleSetting = (key: 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked', value: boolean) => {
-    updateEvent(event.id, { [key]: value });
+  const handleToggleSetting = async (key: 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked' | 'isLiveFeedEnabled', value: boolean) => {
+    if (!event) return;
+    
+    // Optimistic update
     setEvent(prev => prev ? { ...prev, [key]: value } : null);
-    refreshEvents();
+    
+    try {
+      await updateEvent(event.id, { [key]: value });
+      await refreshEvents();
+    } catch (error) {
+      // Revert on error
+      const originalEvent = getEventById(event.id);
+      if (originalEvent) setEvent(originalEvent);
+      toast({ title: "Error", description: "Failed to update setting.", variant: "destructive" });
+    }
   };
 
   const handleDeleteUpload = (uploadId: string) => {
     if (confirm('Are you sure you want to delete this content?')) {
-      deleteUpload(event.id, uploadId);
+      deleteUpload(uploadId);
       // Optimistically update local state here too since useEvents updates its list but maybe not trigger refetch immediately
        setEvent(prev => prev ? {
            ...prev,
@@ -296,115 +319,151 @@ const EventDetail = () => {
             </div>
 
             {/* Content Tabs */}
-            <Tabs defaultValue="photos" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="photos" className="gap-2">
-                  <ImageIcon className="w-4 h-4" />
-                  Photos ({photos.length})
-                </TabsTrigger>
-                <TabsTrigger value="videos" className="gap-2">
-                  <Video className="w-4 h-4" />
-                  Videos ({videos.length})
-                </TabsTrigger>
-                <TabsTrigger value="messages" className="gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Messages ({messages.length})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="photos" className="mt-6">
-                {photos.length === 0 ? (
-                  <div className="text-center py-12 bg-muted/50 rounded-lg">
-                    <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No photos yet</p>
-                    <p className="text-sm text-muted-foreground">Share the QR code with your guests</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {photos.map((photo) => (
-                      <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden bg-muted">
-                        <img 
-                          src={photo.content} 
-                          alt="Guest photo"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <Button 
-                            variant="secondary" 
-                            size="icon"
-                            onClick={() => handleDeleteUpload(photo.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+            <NativeTabs
+              className="w-full max-w-none"
+              defaultValue="photos"
+              items={[
+                {
+                  id: "photos",
+                  label: (
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Photos ({photos.length})</span>
+                    </div>
+                  ) as any,
+                  content: (
+                    <div className="mt-2">
+                       {photos.length === 0 ? (
+                        <div className="text-center py-12 bg-muted/50 rounded-lg">
+                          <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No photos yet</p>
+                          <p className="text-sm text-muted-foreground">Share the QR code with your guests</p>
                         </div>
-                        {photo.guestName && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
-                            <p className="text-xs text-white truncate">by {photo.guestName}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="videos" className="mt-6">
-                {videos.length === 0 ? (
-                  <div className="text-center py-12 bg-muted/50 rounded-lg">
-                    <Video className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No videos yet</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    {videos.map((video) => (
-                      <div key={video.id} className="group relative aspect-video rounded-lg overflow-hidden bg-muted">
-                        <video 
-                          src={video.content} 
-                          className="w-full h-full object-cover"
-                          controls
-                        />
-                        <Button 
-                          variant="destructive" 
-                          size="icon"
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleDeleteUpload(video.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="messages" className="mt-6">
-                {messages.length === 0 ? (
-                  <div className="text-center py-12 bg-muted/50 rounded-lg">
-                    <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No messages yet</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div key={message.id} className="group relative bg-card border border-border rounded-lg p-4">
-                        <p className="text-foreground">{message.content}</p>
-                        {message.guestName && (
-                          <p className="text-sm text-muted-foreground mt-2">— {message.guestName}</p>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleDeleteUpload(message.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {photos.map((photo) => (
+                            <div 
+                              key={photo.id} 
+                              className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-zoom-in"
+                              onClick={() => openLightbox(photos, photos.indexOf(photo))}
+                            >
+                              <img 
+                                src={photo.content} 
+                                alt="Guest photo"
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <Button 
+                                  variant="secondary" 
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteUpload(photo.id);
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                              {photo.guestName && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
+                                  <p className="text-xs text-white truncate">by {photo.guestName}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  id: "videos",
+                  label: (
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4" />
+                      <span>Videos ({videos.length})</span>
+                    </div>
+                  ) as any,
+                  content: (
+                    <div className="mt-2">
+                      {videos.length === 0 ? (
+                        <div className="text-center py-12 bg-muted/50 rounded-lg">
+                          <Video className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No videos yet</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                          {videos.map((video) => (
+                            <div 
+                              key={video.id} 
+                              className="group relative aspect-video rounded-lg overflow-hidden bg-muted cursor-zoom-in"
+                              onClick={() => openLightbox(videos, videos.indexOf(video))}
+                            >
+                              <video 
+                                src={video.content} 
+                                className="w-full h-full object-cover pointer-events-none"
+                              />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Video className="w-12 h-12 text-white/80" />
+                              </div>
+                              <Button 
+                                variant="destructive" 
+                                size="icon"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUpload(video.id);
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  id: "messages",
+                  label: (
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Messages ({messages.length})</span>
+                    </div>
+                  ) as any,
+                  content: (
+                    <div className="mt-2">
+                      {messages.length === 0 ? (
+                        <div className="text-center py-12 bg-muted/50 rounded-lg">
+                          <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No messages yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {messages.map((message) => (
+                            <div key={message.id} className="group relative bg-card border border-border rounded-lg p-4">
+                              <p className="text-foreground">{message.content}</p>
+                              {message.guestName && (
+                                <p className="text-sm text-muted-foreground mt-2">— {message.guestName}</p>
+                              )}
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteUpload(message.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+              ]}
+            />
           </div>
 
           {/* Sidebar */}
@@ -455,7 +514,7 @@ const EventDetail = () => {
                   </div>
                   <Switch 
                     id="uploads"
-                    checked={event.isUploadsEnabled}
+                    checked={!!event.isUploadsEnabled}
                     onCheckedChange={(v) => handleToggleSetting('isUploadsEnabled', v)}
                     disabled={event.isLocked}
                   />
@@ -468,8 +527,21 @@ const EventDetail = () => {
                   </div>
                   <Switch 
                     id="messages"
-                    checked={event.isMessagesEnabled}
+                    checked={!!event.isMessagesEnabled}
                     onCheckedChange={(v) => handleToggleSetting('isMessagesEnabled', v)}
+                    disabled={event.isLocked}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="live-feed">Live Feed (Guest View)</Label>
+                    <p className="text-xs text-muted-foreground">Allow guests to see other uploads</p>
+                  </div>
+                  <Switch 
+                    id="live-feed"
+                    checked={!!event.isLiveFeedEnabled}
+                    onCheckedChange={(v) => handleToggleSetting('isLiveFeedEnabled', v)}
                     disabled={event.isLocked}
                   />
                 </div>
@@ -485,7 +557,7 @@ const EventDetail = () => {
                     </div>
                     <Switch 
                       id="lock"
-                      checked={event.isLocked}
+                      checked={!!event.isLocked}
                       onCheckedChange={(v) => handleToggleSetting('isLocked', v)}
                     />
                   </div>
@@ -576,6 +648,14 @@ const EventDetail = () => {
             </DialogContent>
         </Dialog>
       </main>
+
+      <Lightbox
+        isOpen={lightbox.isOpen}
+        onClose={() => setLightbox(prev => ({ ...prev, isOpen: false }))}
+        items={lightbox.items}
+        currentIndex={lightbox.currentIndex}
+        onNavigate={(index) => setLightbox(prev => ({ ...prev, currentIndex: index }))}
+      />
     </div>
   );
 };

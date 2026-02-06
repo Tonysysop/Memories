@@ -1,11 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 
 const Navbar = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,7 +51,7 @@ const Navbar = () => {
                 <Button 
                   variant="ghost" 
                   className="text-sm font-medium" 
-                  onClick={() => signOut()}
+                  onClick={handleSignOut}
                 >
                   Sign Out
                 </Button>
@@ -55,10 +62,10 @@ const Navbar = () => {
             ) : (
               <>
                 <Button variant="ghost" className="hidden sm:inline-flex text-sm font-medium" asChild>
-                  <Link to="/auth">Sign In</Link>
+                  <Link to="/auth?mode=login">Sign In</Link>
                 </Button>
                 <Button className="text-sm font-medium px-5" asChild>
-                  <Link to="/auth">Get Started</Link>
+                  <Link to="/auth?mode=signup">Get Started</Link>
                 </Button>
               </>
             )}

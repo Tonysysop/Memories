@@ -12,6 +12,7 @@ import DashboardEvents from "./pages/DashboardEvents";
 import EventDetail from "./pages/EventDetails";
 import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
+import GuestUpload from "./pages/GuestUpload";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="event/:id" element={<EventDetail />} />
             <Route path="settings" element={<Settings />} />
           </Route>
+          <Route path="/event/:shareCode" element={<GuestUpload />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

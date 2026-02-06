@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Heart, Mail, Lock, User, ArrowRight, Camera, Sparkles, Check, X, Loader2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import {
@@ -92,7 +92,9 @@ const PasswordStrengthIndicator = ({ password }: { password: string }) => {
 };
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(false);
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get("mode");
+  const [isLogin, setIsLogin] = useState(mode === "login");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 

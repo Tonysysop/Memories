@@ -30,6 +30,7 @@ export interface MemoryEvent {
   isUploadsEnabled: boolean;
   isMessagesEnabled: boolean;
   isLocked: boolean;
+  isLiveFeedEnabled: boolean;
   uploads: EventUpload[];
 }
 
