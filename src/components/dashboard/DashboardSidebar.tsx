@@ -5,7 +5,6 @@ import {
   Settings,
   LogOut,
   Plus,
-  Heart,
   ChevronLeft,
   ChevronRight,
   X
@@ -76,9 +75,7 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle, isMobile, onCl
       {/* Logo */}
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div className={cn("flex items-center gap-2", (isCollapsed && !isMobile) && "justify-center w-full")}>
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <Heart className="w-5 h-5 text-primary-foreground fill-current" />
-          </div>
+          <img src="/Memories.png" alt="Memories Logo" className="w-10 h-10 object-contain shrink-0" />
           {(!isCollapsed || isMobile) && (
             <span className="font-display text-xl font-semibold tracking-tight">
               MEMORIES

@@ -44,12 +44,9 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile Header */}
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-border bg-card/80 backdrop-blur-md z-[40] flex items-center justify-between px-4 lg:hidden">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Menu className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <img src="/Memories.png" alt="Memories Logo" className="w-8 h-8 object-contain" />
           <span className="font-display font-semibold text-lg tracking-tight">MEMORIES</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(true)}>

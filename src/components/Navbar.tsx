@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Heart } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,15 +16,12 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-primary">
-              <Heart className="w-5 h-5 text-primary-foreground fill-current" />
-            </div>
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/Memories.png" alt="Memories Logo" className="h-10 w-auto object-contain" />
             <span className="font-display text-xl md:text-2xl font-semibold tracking-tight">
               MEMORIES
             </span>
-          </div>
+          </Link>
 
           {/* Navigation Links - Hidden on mobile */}
           <div className="hidden md:flex items-center gap-8">
