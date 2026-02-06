@@ -7,7 +7,8 @@ import {
   Plus,
   Heart,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,9 +25,11 @@ interface DashboardSidebarProps {
   onCreateEvent: () => void;
   isCollapsed: boolean;
   onToggle: () => void;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
-const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSidebarProps) => {
+const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle, isMobile, onClose }: DashboardSidebarProps) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,6 +37,13 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    if (isMobile && onClose) {
+      onClose();
+    }
   };
 
   const navItems = [
@@ -49,10 +59,10 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
         "w-full justify-start gap-3",
         isCollapsed && "justify-center px-2"
       )}
-      onClick={() => navigate(item.path)}
+      onClick={() => handleNavigate(item.path)}
     >
       <item.icon className="w-4 h-4 shrink-0" />
-      {!isCollapsed && <span>{item.label}</span>}
+      {(!isCollapsed || isMobile) && <span>{item.label}</span>}
     </Button>
   );
 
@@ -65,33 +75,40 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
     >
       {/* Logo */}
       <div className="p-6 border-b border-border flex items-center justify-between">
-        <div className={cn("flex items-center gap-2", isCollapsed && "justify-center w-full")}>
+        <div className={cn("flex items-center gap-2", (isCollapsed && !isMobile) && "justify-center w-full")}>
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
             <Heart className="w-5 h-5 text-primary-foreground fill-current" />
           </div>
-          {!isCollapsed && (
+          {(!isCollapsed || isMobile) && (
             <span className="font-display text-xl font-semibold tracking-tight">
               MEMORIES
             </span>
           )}
         </div>
+        {isMobile && onClose && (
+          <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
+            <X className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
-      {/* Toggle Button */}
-      <div className="absolute -right-3 top-20">
-        <Button
-          variant="secondary"
-          size="icon"
-          className="w-6 h-6 rounded-full shadow-md border border-border"
-          onClick={onToggle}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="w-3 h-3" />
-          ) : (
-            <ChevronLeft className="w-3 h-3" />
-          )}
-        </Button>
-      </div>
+      {/* Toggle Button - Hidden on mobile drawer */}
+      {!isMobile && (
+        <div className="absolute -right-3 top-20">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="w-6 h-6 rounded-full shadow-md border border-border"
+            onClick={onToggle}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-3 h-3" />
+            ) : (
+              <ChevronLeft className="w-3 h-3" />
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Create Event Button */}
       <div className="p-4">
@@ -123,7 +140,7 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
 
             return (
               <li key={item.path}>
-                {isCollapsed ? (
+                {(isCollapsed && !isMobile) ? (
                   <TooltipProvider>
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
@@ -147,13 +164,13 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
 
       {/* User Section */}
       <div className="p-4 border-t border-border">
-        <div className={cn("flex items-center gap-3 mb-4", isCollapsed ? "justify-center flex-col" : "px-2")}>
+        <div className={cn("flex items-center gap-3 mb-4", (isCollapsed && !isMobile) ? "justify-center flex-col" : "px-2")}>
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <span className="text-sm font-medium text-primary">
               {user?.user_metadata?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
             </span>
           </div>
-          {!isCollapsed && (
+          {(!isCollapsed || isMobile) && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.user_metadata?.name || 'User'}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
@@ -162,7 +179,7 @@ const DashboardSidebar = ({ onCreateEvent, isCollapsed, onToggle }: DashboardSid
           <ThemeToggle />
         </div>
 
-        {isCollapsed ? (
+        {(isCollapsed && !isMobile) ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
