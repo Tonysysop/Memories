@@ -15,6 +15,7 @@ I've implemented a delightful "Floating Hearts" animation on the guest upload pa
 - **State Renaming**: Renamed the `event` state to `memoryEvent` to resolve a subtle TypeScript conflict with the global `event` object, improving build reliability.
 - **Syntax Resolution**: Fixed several JSX nesting and closing tag errors that were preventing the page from rendering correctly.
 - **Logic Restoration**: Restored the `fireConfetti` and submission logic that had been partially broken during previous edits.
+- **Vercel Routing Fix**: Added `vercel.json` with rewrite rules to prevent 404 errors when directly accessing event URLs on the deployed site.
 
 ## Verification Results
 
