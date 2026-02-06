@@ -58,9 +58,9 @@ const EventCard = ({
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent opacity-100 lg:opacity-0 transition-opacity duration-300 lg:group-hover:opacity-100" />
 
-          <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 transition-all duration-300 group-hover:opacity-100">
+          <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-100 lg:opacity-0 transition-all duration-300 lg:group-hover:opacity-100">
             <motion.button
               onClick={() => onView(event)}
               whileHover={{ scale: 1.1 }}

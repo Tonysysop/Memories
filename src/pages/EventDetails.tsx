@@ -21,7 +21,9 @@ import {
   Unlock,
   Share2,
   Camera,
-  Loader2
+  Loader2,
+  Menu,
+  X
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +32,7 @@ import type { EventType, EventUpload } from "@/types/event";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { Lightbox } from "@/components/Lightbox";
+import { AnimatePresence, motion } from "framer-motion";
 
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +51,7 @@ const EventDetail = () => {
     type: 'wedding' as EventType,
     customType: ''
   });
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (event) {
@@ -249,38 +253,51 @@ const EventDetail = () => {
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-xl font-semibold">{event.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                {event.type === 'other' && event.customType 
-                  ? event.customType 
-                  : EVENT_TYPE_LABELS[event.type]}
-                {event.eventDate && ` • ${format(new Date(event.eventDate), 'MMMM d, yyyy')}`}
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="-ml-2">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-semibold truncate">{event.name}</h1>
+                <p className="text-sm text-muted-foreground truncate">
+                  {event.type === 'other' && event.customType 
+                    ? event.customType 
+                    : EVENT_TYPE_LABELS[event.type]}
+                  {event.eventDate && ` • ${format(new Date(event.eventDate), 'MMMM d, yyyy')}`}
+                </p>
+              </div>
             </div>
             
-            <Button variant="outline" size="sm" onClick={() => {
-                setEditForm({
-                    name: event.name,
-                    date: event.eventDate || '',
-                    type: event.type,
-                    customType: event.customType || ''
-                });
-                setIsEditOpen(true);
-            }}>
-                Edit Details
-            </Button>
+            <div className="flex items-center gap-2 sm:ml-auto">
+              <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => {
+                  setEditForm({
+                      name: event.name,
+                      date: event.eventDate || '',
+                      type: event.type,
+                      customType: event.customType || ''
+                  });
+                  setIsEditOpen(true);
+              }}>
+                  Edit Details
+              </Button>
 
-            {event.isLocked && (
-              <Badge variant="secondary" className="gap-1">
-                <Lock className="w-3 h-3" />
-                Locked
-              </Badge>
-            )}
+              {event.isLocked && (
+                <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+                  <Lock className="w-3 h-3" />
+                  Locked
+                </Badge>
+              )}
+
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="lg:hidden" 
+                onClick={() => setIsMenuOpen(true)}
+              >
+                <Menu className="w-6 h-6" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -328,7 +345,8 @@ const EventDetail = () => {
                   label: (
                     <div className="flex items-center gap-2">
                       <ImageIcon className="w-4 h-4" />
-                      <span>Photos ({photos.length})</span>
+                      <span className="hidden xs:inline">Photos ({photos.length})</span>
+                      <span className="xs:hidden">({photos.length})</span>
                     </div>
                   ) as any,
                   content: (
@@ -336,26 +354,27 @@ const EventDetail = () => {
                        {photos.length === 0 ? (
                         <div className="text-center py-12 bg-muted/50 rounded-lg">
                           <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                          <p className="text-muted-foreground">No photos yet</p>
-                          <p className="text-sm text-muted-foreground">Share the QR code with your guests</p>
+                          <p className="text-muted-foreground font-medium">No photos yet</p>
+                          <p className="text-sm text-muted-foreground px-4">Share the QR code with your guests to start collecting memories</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 font-inter">
                           {photos.map((photo) => (
                             <div 
                               key={photo.id} 
-                              className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-zoom-in"
+                              className="group relative aspect-square rounded-xl overflow-hidden bg-muted cursor-zoom-in"
                               onClick={() => openLightbox(photos, photos.indexOf(photo))}
                             >
                               <img 
                                 src={photo.content} 
                                 alt="Guest photo"
-                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                               />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Button 
                                   variant="secondary" 
                                   size="icon"
+                                  className="h-9 w-9 bg-white/20 backdrop-blur-md border-white/20 text-white hover:bg-white/40"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteUpload(photo.id);
@@ -365,8 +384,8 @@ const EventDetail = () => {
                                 </Button>
                               </div>
                               {photo.guestName && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
-                                  <p className="text-xs text-white truncate">by {photo.guestName}</p>
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                                  <p className="text-[10px] text-white/90 font-medium truncate">by {photo.guestName}</p>
                                 </div>
                               )}
                             </div>
@@ -381,7 +400,8 @@ const EventDetail = () => {
                   label: (
                     <div className="flex items-center gap-2">
                       <Video className="w-4 h-4" />
-                      <span>Videos ({videos.length})</span>
+                      <span className="hidden xs:inline">Videos ({videos.length})</span>
+                      <span className="xs:hidden">({videos.length})</span>
                     </div>
                   ) as any,
                   content: (
@@ -389,14 +409,14 @@ const EventDetail = () => {
                       {videos.length === 0 ? (
                         <div className="text-center py-12 bg-muted/50 rounded-lg">
                           <Video className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                          <p className="text-muted-foreground">No videos yet</p>
+                          <p className="text-muted-foreground font-medium">No videos yet</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {videos.map((video) => (
                             <div 
                               key={video.id} 
-                              className="group relative aspect-video rounded-lg overflow-hidden bg-muted cursor-zoom-in"
+                              className="group relative aspect-video rounded-xl overflow-hidden bg-muted cursor-zoom-in"
                               onClick={() => openLightbox(videos, videos.indexOf(video))}
                             >
                               <video 
@@ -404,12 +424,14 @@ const EventDetail = () => {
                                 className="w-full h-full object-cover pointer-events-none"
                               />
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Video className="w-12 h-12 text-white/80" />
+                                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center">
+                                  <Video className="w-6 h-6 text-white" />
+                                </div>
                               </div>
                               <Button 
                                 variant="destructive" 
                                 size="icon"
-                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteUpload(video.id);
@@ -429,7 +451,8 @@ const EventDetail = () => {
                   label: (
                     <div className="flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
-                      <span>Messages ({messages.length})</span>
+                      <span className="hidden xs:inline">Messages ({messages.length})</span>
+                      <span className="xs:hidden">({messages.length})</span>
                     </div>
                   ) as any,
                   content: (
@@ -437,20 +460,20 @@ const EventDetail = () => {
                       {messages.length === 0 ? (
                         <div className="text-center py-12 bg-muted/50 rounded-lg">
                           <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                          <p className="text-muted-foreground">No messages yet</p>
+                          <p className="text-muted-foreground font-medium">No messages yet</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
                           {messages.map((message) => (
-                            <div key={message.id} className="group relative bg-card border border-border rounded-lg p-4">
-                              <p className="text-foreground">{message.content}</p>
+                            <div key={message.id} className="group relative bg-card border border-border rounded-xl p-5 shadow-sm">
+                              <p className="text-foreground leading-relaxed italic">"{message.content}"</p>
                               {message.guestName && (
-                                <p className="text-sm text-muted-foreground mt-2">— {message.guestName}</p>
+                                <p className="text-sm font-medium text-primary mt-3">— {message.guestName}</p>
                               )}
                               <Button 
                                 variant="ghost" 
                                 size="icon"
-                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
                                 onClick={() => handleDeleteUpload(message.id)}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -467,126 +490,10 @@ const EventDetail = () => {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Share Card */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Share2 className="w-4 h-4" />
-                Share with Guests
-              </h3>
-              
-              {/* QR Code */}
-              <div className="bg-white p-4 rounded-lg mb-4 flex items-center justify-center">
-                <QRCodeSVG 
-                  value={shareUrl} 
-                  size={180}
-                  level="M"
-                  includeMargin={false}
-                />
-              </div>
-
-              {/* Share Code */}
-              <div className="mb-4">
-                <Label className="text-xs text-muted-foreground">Event Code</Label>
-                <p className="text-2xl font-mono font-bold tracking-wider">{event.shareCode}</p>
-              </div>
-
-              {/* Share Link */}
-              <div className="flex gap-2">
-                <div className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm truncate">
-                  {shareUrl}
-                </div>
-                <Button variant="secondary" size="icon" onClick={handleCopyLink}>
-                  <Copy className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Settings Card */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4">Event Settings</h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="uploads">Photo/Video Uploads</Label>
-                    <p className="text-xs text-muted-foreground">Allow guests to upload media</p>
-                  </div>
-                  <Switch 
-                    id="uploads"
-                    checked={!!event.isUploadsEnabled}
-                    onCheckedChange={(v) => handleToggleSetting('isUploadsEnabled', v)}
-                    disabled={event.isLocked}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="messages">Guest Messages</Label>
-                    <p className="text-xs text-muted-foreground">Allow guests to leave messages</p>
-                  </div>
-                  <Switch 
-                    id="messages"
-                    checked={!!event.isMessagesEnabled}
-                    onCheckedChange={(v) => handleToggleSetting('isMessagesEnabled', v)}
-                    disabled={event.isLocked}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="live-feed">Live Feed (Guest View)</Label>
-                    <p className="text-xs text-muted-foreground">Allow guests to see other uploads</p>
-                  </div>
-                  <Switch 
-                    id="live-feed"
-                    checked={!!event.isLiveFeedEnabled}
-                    onCheckedChange={(v) => handleToggleSetting('isLiveFeedEnabled', v)}
-                    disabled={event.isLocked}
-                  />
-                </div>
-
-                <div className="border-t border-border pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="lock" className="flex items-center gap-2">
-                        {event.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-                        Lock Event
-                      </Label>
-                      <p className="text-xs text-muted-foreground">Prevent new uploads</p>
-                    </div>
-                    <Switch 
-                      id="lock"
-                      checked={!!event.isLocked}
-                      onCheckedChange={(v) => handleToggleSetting('isLocked', v)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats Card */}
-            <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4">Statistics</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Photos</span>
-                  <span className="font-medium">{photos.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Videos</span>
-                  <span className="font-medium">{videos.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Messages</span>
-                  <span className="font-medium">{messages.length}</span>
-                </div>
-                <div className="border-t border-border pt-3 flex justify-between">
-                  <span className="text-muted-foreground">Total</span>
-                  <span className="font-bold">{event.uploads.length}</span>
-                </div>
-              </div>
-            </div>
+          <div className="hidden lg:block space-y-6">
+            <ShareCard shareUrl={shareUrl} event={event} handleCopyLink={handleCopyLink} />
+            <SettingsCard event={event} handleToggleSetting={handleToggleSetting} />
+            <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} />
           </div>
         </div>
 
@@ -656,9 +563,181 @@ const EventDetail = () => {
         currentIndex={lightbox.currentIndex}
         onNavigate={(index) => setLightbox(prev => ({ ...prev, currentIndex: index }))}
       />
+
+      <MobileDrawer 
+        isOpen={isMenuOpen} 
+        onClose={() => setIsMenuOpen(false)}
+        shareUrl={shareUrl}
+        event={event}
+        handleCopyLink={handleCopyLink}
+        handleToggleSetting={handleToggleSetting}
+        photos={photos}
+        videos={videos}
+        messages={messages}
+      />
     </div>
   );
 };
 
+function MobileDrawer({ isOpen, onClose, shareUrl, event, handleCopyLink, handleToggleSetting, photos, videos, messages }: any) {
+  return (
+    <AnimatePresence mode="wait">
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] lg:hidden"
+          />
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-background border-l border-border z-[101] shadow-2xl lg:hidden overflow-y-auto"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-xl font-bold text-primary">Manage Event</h2>
+                <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
+                  <X className="w-6 h-6" />
+                </Button>
+              </div>
+              
+              <div className="space-y-6">
+                <ShareCard shareUrl={shareUrl} event={event} handleCopyLink={handleCopyLink} />
+                <SettingsCard event={event} handleToggleSetting={handleToggleSetting} />
+                <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} />
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+
+
+function ShareCard({ shareUrl, event, handleCopyLink }: any) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <h3 className="font-semibold mb-4 flex items-center gap-2 text-primary">
+        <Share2 className="w-4 h-4" />
+        Share with Guests
+      </h3>
+      <div className="bg-white p-4 rounded-xl mb-4 flex items-center justify-center border border-border shadow-inner">
+        <QRCodeSVG 
+          value={shareUrl} 
+          size={180}
+          level="M"
+          includeMargin={false}
+        />
+      </div>
+      <div className="mb-4">
+        <Label className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">Event Code</Label>
+        <p className="text-3xl font-mono font-bold tracking-[0.1em] text-foreground mt-1">{event.shareCode}</p>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1 bg-muted rounded-lg px-3 py-2 text-xs truncate border border-border font-medium text-muted-foreground">
+          {shareUrl}
+        </div>
+        <Button variant="secondary" size="icon" onClick={handleCopyLink} className="shrink-0 h-9 w-9">
+          <Copy className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SettingsCard({ event, handleToggleSetting }: any) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <h3 className="font-semibold mb-4 text-primary">Event Settings</h3>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="uploads" className="text-sm font-medium">Photo/Video Uploads</Label>
+            <p className="text-[11px] text-muted-foreground">Allow guests to upload media</p>
+          </div>
+          <Switch 
+            id="uploads"
+            checked={!!event.isUploadsEnabled}
+            onCheckedChange={(v) => handleToggleSetting('isUploadsEnabled', v)}
+            disabled={event.isLocked}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="messages" className="text-sm font-medium">Guest Messages</Label>
+            <p className="text-[11px] text-muted-foreground">Allow guests to leave messages</p>
+          </div>
+          <Switch 
+            id="messages"
+            checked={!!event.isMessagesEnabled}
+            onCheckedChange={(v) => handleToggleSetting('isMessagesEnabled', v)}
+            disabled={event.isLocked}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="live-feed" className="text-sm font-medium">Live Feed (Guest View)</Label>
+            <p className="text-[11px] text-muted-foreground">Allow guests to see other uploads</p>
+          </div>
+          <Switch 
+            id="live-feed"
+            checked={!!event.isLiveFeedEnabled}
+            onCheckedChange={(v) => handleToggleSetting('isLiveFeedEnabled', v)}
+            disabled={event.isLocked}
+          />
+        </div>
+        <div className="border-t border-border pt-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="lock" className="flex items-center gap-2 text-sm font-medium">
+                {event.isLocked ? <Lock className="w-4 h-4 text-amber-500" /> : <Unlock className="w-4 h-4" />}
+                Lock Event
+              </Label>
+              <p className="text-[11px] text-muted-foreground">Prevent new uploads</p>
+            </div>
+            <Switch 
+              id="lock"
+              checked={!!event.isLocked}
+              onCheckedChange={(v) => handleToggleSetting('isLocked', v)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatsCard({ photos, videos, messages, total }: any) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <h3 className="font-semibold mb-4 text-primary">Statistics</h3>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
+          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Photos</span>
+          <span className="font-bold">{photos.length}</span>
+        </div>
+        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
+          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Videos</span>
+          <span className="font-bold">{videos.length}</span>
+        </div>
+        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
+          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Messages</span>
+          <span className="font-bold">{messages.length}</span>
+        </div>
+        <div className="border-t border-border pt-4 flex justify-between items-center">
+          <span className="text-sm font-bold text-muted-foreground">TOTAL CONTENT</span>
+          <span className="font-black text-2xl text-primary">{total}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default EventDetail;

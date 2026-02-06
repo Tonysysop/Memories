@@ -16,6 +16,10 @@ I've implemented a delightful "Floating Hearts" animation on the guest upload pa
 - **Syntax Resolution**: Fixed several JSX nesting and closing tag errors that were preventing the page from rendering correctly.
 - **Logic Restoration**: Restored the `fireConfetti` and submission logic that had been partially broken during previous edits.
 - **Vercel Routing Fix**: Added `vercel.json` with rewrite rules to prevent 404 errors when directly accessing event URLs on the deployed site.
+- **Responsive Event Details**: Completely refactored the `EventDetails.tsx` page to be mobile-responsive:
+  - Header adaptively stacks on small screens.
+  - "Share", "Settings", and "Stats" are moved to a dedicated "Manage" tab on mobile to save space.
+  - Media grids (Photos/Videos) now adjust their column count for better visibility on touch devices.
 
 ## Verification Results
 
