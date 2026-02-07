@@ -34,8 +34,10 @@ export const useEvents = () => {
         eventDate: e.event_date,
         isUploadsEnabled: e.is_uploads_enabled,
         isMessagesEnabled: e.is_messages_enabled,
+        isGiftingEnabled: e.is_gifting_enabled,
         isLocked: e.is_locked,
         isLiveFeedEnabled: e.is_live_feed_enabled,
+        isGiftTotalHidden: e.is_gift_total_hidden,
         uploads: []
       })) as MemoryEvent[];
     },
@@ -44,7 +46,7 @@ export const useEvents = () => {
 
   // Create Event Mutation
   const createEventMutation = useMutation({
-    mutationFn: async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isLocked' | 'isLiveFeedEnabled'>) => {
+    mutationFn: async (eventData: Omit<MemoryEvent, 'id' | 'hostId' | 'shareCode' | 'createdAt' | 'uploads' | 'isUploadsEnabled' | 'isMessagesEnabled' | 'isGiftingEnabled' | 'isLocked' | 'isLiveFeedEnabled'>) => {
       if (!user) throw new Error('User not authenticated');
 
       const slug = `${eventData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Math.random().toString(36).substring(2, 7)}`;
@@ -61,6 +63,7 @@ export const useEvents = () => {
           event_date: eventData.eventDate,
           is_uploads_enabled: true,
           is_messages_enabled: true,
+          is_gifting_enabled: false,
           is_locked: false,
           is_live_feed_enabled: false
         })
@@ -80,6 +83,7 @@ export const useEvents = () => {
         eventDate: data.event_date,
         isUploadsEnabled: data.is_uploads_enabled,
         isMessagesEnabled: data.is_messages_enabled,
+        isGiftingEnabled: data.is_gifting_enabled,
         isLocked: data.is_locked,
         isLiveFeedEnabled: data.is_live_feed_enabled,
         uploads: []
@@ -106,7 +110,9 @@ export const useEvents = () => {
       if (typeof updates.isLocked !== 'undefined') dbUpdates.is_locked = updates.isLocked;
       if (typeof updates.isUploadsEnabled !== 'undefined') dbUpdates.is_uploads_enabled = updates.isUploadsEnabled;
       if (typeof updates.isMessagesEnabled !== 'undefined') dbUpdates.is_messages_enabled = updates.isMessagesEnabled;
+      if (typeof updates.isGiftingEnabled !== 'undefined') dbUpdates.is_gifting_enabled = updates.isGiftingEnabled;
       if (typeof updates.isLiveFeedEnabled !== 'undefined') dbUpdates.is_live_feed_enabled = updates.isLiveFeedEnabled;
+      if (typeof updates.isGiftTotalHidden !== 'undefined') dbUpdates.is_gift_total_hidden = updates.isGiftTotalHidden;
 
       const { error } = await supabase
         .from('events')

@@ -4,7 +4,9 @@ import confetti from "canvas-confetti";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   Heart, 
   Camera, 
@@ -16,7 +18,8 @@ import {
   Loader2,
   CheckCircle2,
   Sparkles,
-  ArrowUp
+  ArrowUp,
+  Banknote
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { MemoryEvent, EventType } from "@/types/event";
@@ -43,11 +46,11 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase">
-                  {item.uploaded_by?.[0] || item.name?.[0] || '?'}
+                  {item.is_anonymous && item.type === 'gift' ? '?' : (item.uploaded_by?.[0] || item.name?.[0] || '?')}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white">
-                    {item.uploaded_by || item.name || 'Anonymous Guest'}
+                    {item.is_anonymous && item.type === 'gift' ? 'Anonymous Guest' : (item.uploaded_by || item.name || 'Anonymous Guest')}
                   </p>
                   <p className="text-[10px] text-white/40">
                     {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
@@ -55,7 +58,16 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
                 </div>
               </div>
 
-              {item.type === 'message' ? (
+              {item.type === 'gift' ? (
+                <div className="flex items-center gap-3 bg-white/5 rounded-xl p-4 border border-white/5">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Banknote className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="text-sm text-white/90 font-medium">
+                    Sent a cash gift
+                  </p>
+                </div>
+              ) : item.type === 'message' ? (
                 <p className="text-sm text-white/80 leading-relaxed italic">
                   "{item.message}"
                 </p>
@@ -222,6 +234,12 @@ const GuestUpload = () => {
   const [isFeedLoading, setIsFeedLoading] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasNewActivity, setHasNewActivity] = useState(false);
+  const [showGiftPanel, setShowGiftPanel] = useState(false);
+  const [giftAmount, setGiftAmount] = useState<number | null>(null);
+  const [customGiftAmount, setCustomGiftAmount] = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [submissionType, setSubmissionType] = useState<'media' | 'message' | 'gift' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -305,6 +323,7 @@ const GuestUpload = () => {
         eventDate: data.event_date,
         isUploadsEnabled: data.is_uploads_enabled,
         isMessagesEnabled: data.is_messages_enabled,
+        isGiftingEnabled: !!data.is_gifting_enabled,
         isLocked: data.is_locked,
         isLiveFeedEnabled: !!data.is_live_feed_enabled,
         uploads: [] 
@@ -369,10 +388,27 @@ const GuestUpload = () => {
           });
         })
         .subscribe();
+        
+      const giftChannel = supabase
+        .channel(`gifts-${data.id}`)
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'media',
+          filter: `event_id=eq.${data.id} AND file_type=eq.gift` 
+        }, (payload) => {
+          setFeedItems(prev => {
+            if (prev.some(item => item.id === payload.new.id)) return prev;
+            if (window.scrollY > 400) setHasNewActivity(true);
+            return [{ ...payload.new, type: 'gift' }, ...prev].slice(0, 15);
+          });
+        })
+        .subscribe();
 
       return () => {
         supabase.removeChannel(mediaChannel);
         supabase.removeChannel(messageChannel);
+        supabase.removeChannel(giftChannel);
       };
     };
 
@@ -475,6 +511,7 @@ const GuestUpload = () => {
       toast({ title: "🎉 Upload complete!", description: `${selectedFiles.length} file(s) uploaded successfully.` });
       setSelectedFiles([]);
       setUploadProgress({});
+      setSubmissionType('media');
       setIsSubmitted(true);
       fireConfetti(true);
       triggerHearts();
@@ -540,6 +577,7 @@ const GuestUpload = () => {
       toast({ title: "💬 Message sent!", description: "Your message has been added." });
       setMessage("");
       setShowCommentBox(false);
+      setSubmissionType('message');
       setIsSubmitted(true);
       fireConfetti(true);
       triggerHearts();
@@ -548,6 +586,110 @@ const GuestUpload = () => {
       toast({ title: "Error", description: "Failed to send message. Please try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitGift = async () => {
+    const finalAmount = giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
+    if (!finalAmount || finalAmount <= 0) {
+      toast({ title: "Invalid Amount", description: "Please select or enter a valid gift amount.", variant: "destructive" });
+      return;
+    }
+    if (!validateName() || !memoryEvent) return;
+
+    setIsSubmitting(true);
+    try {
+      // Check event status
+      const { data: latestEvent, error: fetchError } = await supabase
+        .from('events')
+        .select('is_locked, is_gifting_enabled')
+        .eq('id', memoryEvent.id)
+        .single();
+
+      if (fetchError || !latestEvent) throw new Error("Could not verify event status");
+
+      if (latestEvent.is_locked) {
+        toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
+        setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        return;
+      }
+
+      if (!latestEvent.is_gifting_enabled) {
+        toast({ title: "Gifting Disabled", description: "The host has disabled cash gifting.", variant: "destructive" });
+        setMemoryEvent(prev => prev ? { ...prev, isGiftingEnabled: false } : null);
+        return;
+      }
+
+      // Mock Gift Submission
+      const { data: giftEntry, error } = await supabase
+        .from('media')
+        .insert({
+          event_id: memoryEvent.id,
+          file_type: 'gift',
+          file_url: 'gift-placeholder', // Not used for gifts
+          uploaded_by: guestName.trim(),
+          gift_amount: finalAmount,
+          gift_message: giftMessage.trim(),
+          is_anonymous: isAnonymous
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      // Immediate UI Update
+      if (giftEntry) {
+         setFeedItems(prev => {
+            if (prev.some(item => item.id === giftEntry.id)) return prev;
+            return [{ ...giftEntry, type: 'gift', giftAmount: finalAmount, giftMessage: giftMessage.trim(), is_anonymous: isAnonymous }, ...prev].slice(0, 15);
+         });
+      }
+
+      toast({ title: "🎁 Gift Sent!", description: `You sent ₦${finalAmount.toLocaleString()} to the host.` });
+      setGiftAmount(null);
+      setCustomGiftAmount("");
+      setGiftMessage("");
+      setIsAnonymous(false);
+      setShowGiftPanel(false);
+      setSubmissionType('gift');
+      setIsSubmitted(true);
+      
+      // Gold Confetti
+      const duration = 3000;
+      const end = Date.now() + duration;
+      const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"]; // Red (Primary) + Gold theme
+
+      const frame = () => {
+        confetti({
+          particleCount: 7,
+          angle: 60,
+          spread: 70,
+          origin: { x: 0, y: 0.8 },
+          colors,
+          zIndex: 9999
+        });
+        confetti({
+          particleCount: 7,
+          angle: 120,
+          spread: 70,
+          origin: { x: 1, y: 0.8 },
+          colors,
+          zIndex: 9999
+        });
+
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      };
+      frame();
+
+      triggerHearts();
+
+    } catch (error) {
+       console.error('Error sending gift:', error);
+       toast({ title: "Error", description: "Failed to send gift. Please try again.", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -660,9 +802,13 @@ const GuestUpload = () => {
                     <CheckCircle2 className="w-10 h-10 text-primary relative z-10" />
                   </div>
                   
-                  <h2 className="text-3xl font-display font-bold text-white mb-4 tracking-tight">Memories Shared!</h2>
+                  <h2 className="text-3xl font-display font-bold text-white mb-4 tracking-tight">
+                    {submissionType === 'gift' ? 'Gift Sent!' : 'Memories Shared!'}
+                  </h2>
                   <p className="text-white/60 text-base leading-relaxed mb-10">
-                    Thank you for being part of {memoryEvent.name}. Your contribution has been added to the collection.
+                    {submissionType === 'gift' 
+                      ? `Thank you for your generous gift to ${memoryEvent.name}. Your support is truly appreciated.`
+                      : `Thank you for being part of ${memoryEvent.name}. Your contribution has been added to the collection.`}
                   </p>
                   
                   <div className="space-y-4">
@@ -806,8 +952,9 @@ const GuestUpload = () => {
                   )}
 
                   {/* Comment Section */}
+                  <div className="pt-2 space-y-3">
                   {memoryEvent.isMessagesEnabled && (
-                    <div className="pt-2">
+                    <>
                       {!showCommentBox ? (
                         <Button
                           variant="ghost"
@@ -845,11 +992,165 @@ const GuestUpload = () => {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
+                  
+                  {/* Gifting Button */}
+                  {memoryEvent.isGiftingEnabled && !showCommentBox && (
+                    <Button 
+                        variant="ghost" 
+                        className="w-full h-12 rounded-xl text-amber-300/80 hover:text-amber-300 hover:bg-amber-500/10 font-medium"
+                        onClick={() => setShowGiftPanel(true)}
+                    >
+                        <Banknote className="w-4 h-4 mr-2" />
+                        Send a cash gift
+                    </Button>
+                  )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+               {/* Gifting Modal */}
+                <AnimatePresence>
+                {showGiftPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 50 }}
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                  >
+                   <div className="w-full max-w-sm bg-black/60 backdrop-blur-2xl border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden ring-1 ring-white/5">
+                     {/* Decorative Elements */}
+                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+                     
+                     <div className="relative">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
+                                    <Banknote className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-display font-bold text-white tracking-tight">Send a Gift</h3>
+                                    <p className="text-white/40 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                        
+                            <div className="mb-6 space-y-2">
+                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
+                                <Input
+                                    placeholder="Enter your full name"
+                                    value={guestName}
+                                    onChange={(e) => setGuestName(e.target.value)}
+                                    className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-xl h-12 focus:border-primary/50 focus:bg-white/10 transition-all px-4"
+                                />
+                            </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-3">
+                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[1000, 2000, 5000, 10000].map((amount) => (
+                                        <button
+                                            key={amount}
+                                            onClick={() => {
+                                                setGiftAmount(amount);
+                                                setCustomGiftAmount("");
+                                            }}
+                                            className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${
+                                                giftAmount === amount 
+                                                ? "bg-primary border-primary text-white shadow-lg shadow-primary/25" 
+                                                : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20"
+                                            }`}
+                                        >
+                                            <span className="text-[10px] opacity-60 font-medium">₦</span>
+                                            <span className="text-lg tracking-tight">{amount.toLocaleString()}</span>
+                                            {giftAmount === amount && (
+                                                <motion.div
+                                                    layoutId="active-glow"
+                                                    className="absolute inset-0 bg-white/20"
+                                                    initial={false}
+                                                    transition={{ duration: 0.3 }}
+                                                />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="relative group">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-serif italic text-lg pointer-events-none group-focus-within:text-primary/70 transition-colors">₦</div>
+                                <Input
+                                    type="number"
+                                    placeholder="Enter custom amount"
+                                    value={customGiftAmount}
+                                    onChange={(e) => {
+                                        setCustomGiftAmount(e.target.value);
+                                        setGiftAmount(null);
+                                    }}
+                                    className={`pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-2xl focus:border-primary/50 focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">Personal Note</Label>
+                                <Textarea
+                                    placeholder="Add a sweet message for the host..."
+                                    value={giftMessage}
+                                    onChange={(e) => setGiftMessage(e.target.value)}
+                                    className="bg-white/5 border-white/10 text-white placeholder:text-white/20 min-h-[100px] rounded-2xl resize-none p-4 focus:border-primary/50 focus:bg-white/10 transition-all"
+                                />
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id="anonymous" 
+                                    checked={isAnonymous}
+                                    onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
+                                    className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <Label htmlFor="anonymous" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white/80 cursor-pointer">
+                                    Make my gift anonymous
+                                </Label>
+                            </div>
+
+                            <div className="pt-2 space-y-4">
+                                <div className="flex items-center gap-2 justify-center bg-white/5 rounded-full py-2 px-4 border border-white/5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <p className="text-[10px] text-white/40 font-medium tracking-wide">
+                                        Secure Payment via Paystack (Demo)
+                                    </p>
+                                </div>
+                                <Button 
+                                    onClick={handleSubmitGift} 
+                                    disabled={isSubmitting || (!giftAmount && !customGiftAmount)}
+                                    className={`w-full h-14 rounded-2xl text-white font-bold text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                                        !giftAmount && !customGiftAmount 
+                                        ? "bg-white/10 text-white/20 cursor-not-allowed" 
+                                        : "bg-gradient-to-r from-primary to-orange-600 hover:shadow-primary/20"
+                                    }`}
+                                >
+                                    {isSubmitting ? (
+                                        <div className="flex items-center gap-2">
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            <span>Processing...</span>
+                                        </div>
+                                    ) : (
+                                        <span>Send ₦{(giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0)).toLocaleString()} Gift</span>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                     </div>
+                   </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
