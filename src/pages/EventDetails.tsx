@@ -27,7 +27,10 @@ import {
   TrendingUp,
   Activity,
   PieChart,
-  Plus
+  Plus,
+  Banknote,
+  Gift,
+  Mail
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QRCodeSVG } from "qrcode.react";
@@ -612,6 +615,66 @@ const EventDetail = () => {
                       )}
                     </div>
                   )
+                },
+                {
+                  id: "gifts",
+                  label: (
+                    <div className="flex items-center gap-2">
+                      <Gift className="w-4 h-4" />
+                      <span className="hidden xs:inline">Gifts (₦{totalGiftsAmount.toLocaleString()})</span>
+                      <span className="xs:hidden">(₦{totalGiftsAmount.toLocaleString()})</span>
+                    </div>
+                  ) as any,
+                  content: (
+                    <div className="mt-2">
+                      {gifts.length === 0 ? (
+                        <div className="text-center py-12 bg-muted/50 rounded-lg">
+                          <Gift className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground font-medium">No gifts yet</p>
+                          <p className="text-sm text-muted-foreground px-4">Enable gifting in settings to let guests contribute</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                                        <Banknote className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Total Contributions</p>
+                                        <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">₦{totalGiftsAmount.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                          {gifts.map((gift) => (
+                            <div key={gift.id} className="group relative bg-card border border-border rounded-xl p-5 shadow-sm flex items-start gap-4">
+                                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                                    <Banknote className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex flex-col">
+                                            <p className="font-semibold text-foreground truncate">{gift.guestName}</p>
+                                            {gift.isAnonymous && (
+                                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold bg-muted px-1.5 py-0.5 rounded w-fit mt-0.5">Anonymous</span>
+                                            )}
+                                        </div>
+                                        <span className="text-lg font-bold text-green-600 dark:text-green-400">₦{gift.giftAmount?.toLocaleString()}</span>
+                                    </div>
+                                    {gift.giftMessage && (
+                                        <p className="text-foreground/80 italic text-sm">"{gift.giftMessage}"</p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        {format(new Date(gift.createdAt), 'MMM d, yyyy h:mm a')}
+                                    </p>
+                                </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
                 }
               ]}
             />
@@ -951,19 +1014,20 @@ function ActivityChart({ data }: { data: number[] }) {
   const max = Math.max(...data, 1);
   
   return (
-    <div className="flex items-end justify-between h-20 gap-1.5 w-full bg-muted/20 rounded-xl p-4 border border-border/50">
+    <div className="flex items-end justify-between h-20 gap-1 w-full bg-muted/20 rounded-xl p-4 border border-border/50">
       {data.map((val, i) => {
-        const height = (val / max) * 100;
+        // Actually, let's keep 0 as 0 height but maybe show a base line?
+        // Let's rely on the bg-muted/20 of the container for "empty" space, but maybe give empty bars a small height?
+        // User complained "blank". If everything is 0, it's blank. But we know there is data.
+        
         return (
-          <div key={i} className="flex-1 flex flex-col items-center group">
-            <motion.div
-              initial={{ height: 0 }}
-              animate={{ height: `${height}%` }}
-              transition={{ duration: 0.8, delay: i * 0.05, ease: "backOut" }}
-              className={`w-full rounded-t-sm transition-colors cursor-help ${
-                height > 0 ? "bg-primary/40 group-hover:bg-primary" : "bg-muted/30"
-              }`}
-            />
+          <div key={i} className="flex-1 flex flex-col items-center group h-full justify-end relative">
+             <div 
+                className={`w-full rounded-t-sm transition-all duration-500 ${
+                  val > 0 ? "bg-primary hover:bg-primary/80" : "bg-muted/20 hover:bg-muted/40"
+                }`}
+                style={{ height: `${val > 0 ? (val/max)*100 : 5}%` }} 
+             />
             {val > 0 && (
               <div className="absolute opacity-0 group-hover:opacity-100 -top-8 bg-foreground text-background text-[10px] px-2 py-1 rounded font-bold pointer-events-none transition-opacity whitespace-nowrap z-50">
                 {val} items
@@ -979,14 +1043,18 @@ function ActivityChart({ data }: { data: number[] }) {
 function StatsCard({ photos, videos, messages, total, uploads }: { photos: any[], videos: any[], messages: any[], total: number, uploads: any[] }) {
   const photoRatio = total > 0 ? (photos.length / (photos.length + videos.length || 1)) * 100 : 0;
   
-  // Group activities by hour for the last 12 hours
+  // Group activities by hour for the last 24 hours
   const now = new Date();
-  const timelineData = Array.from({ length: 12 }).map((_, i) => {
-    const hourAgo = new Date(now.getTime() - (11 - i) * 60 * 60 * 1000);
-    const nextHour = new Date(now.getTime() - (10 - i) * 60 * 60 * 1000);
+  const timelineData = Array.from({ length: 24 }).map((_, i) => {
+    // Correctly map buckets:
+    // i=23 (last bar): [now - 1h, now)
+    // i=0 (first bar): [now - 24h, now - 23h)
+    const hourStart = new Date(now.getTime() - (24 - i) * 60 * 60 * 1000);
+    const hourEnd = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000);
+    
     return uploads.filter(u => {
       const date = new Date(u.createdAt);
-      return date >= hourAgo && date < nextHour;
+      return date >= hourStart && date < hourEnd;
     }).length;
   });
 
@@ -1033,6 +1101,13 @@ function StatsCard({ photos, videos, messages, total, uploads }: { photos: any[]
                 <p className="text-[8px] text-muted-foreground uppercase font-black mb-1">Notes</p>
                 <p className="font-bold text-sm">{messages.length}</p>
               </div>
+              <div className="bg-muted/30 rounded-lg p-2 text-center col-span-3 mt-1">
+                 <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
+                    <Gift className="w-3 h-3" />
+                    <p className="text-[8px] uppercase font-black">Gifts Received</p>
+                 </div>
+                 <p className="font-bold text-sm">{uploads.filter(u => u.type === 'gift').length}</p>
+              </div>
            </div>
         </div>
       </div>
@@ -1043,7 +1118,7 @@ function StatsCard({ photos, videos, messages, total, uploads }: { photos: any[]
             <Activity className="w-3 h-3" />
             Live Activity Trends
           </h4>
-          <span className="text-[10px] text-muted-foreground font-medium">Last 12h</span>
+          <span className="text-[10px] text-muted-foreground font-medium">Last 24h</span>
         </div>
         <ActivityChart data={timelineData} />
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 font-medium">
