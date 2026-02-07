@@ -4,7 +4,9 @@ import confetti from "canvas-confetti";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   Heart, 
   Camera, 
@@ -43,11 +45,11 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase">
-                  {item.uploaded_by?.[0] || item.name?.[0] || '?'}
+                  {item.is_anonymous && item.type === 'gift' ? '?' : (item.uploaded_by?.[0] || item.name?.[0] || '?')}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white">
-                    {item.uploaded_by || item.name || 'Anonymous Guest'}
+                    {item.is_anonymous && item.type === 'gift' ? 'Anonymous Guest' : (item.uploaded_by || item.name || 'Anonymous Guest')}
                   </p>
                   <p className="text-[10px] text-white/40">
                     {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
@@ -55,7 +57,16 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
                 </div>
               </div>
 
-              {item.type === 'message' ? (
+              {item.type === 'gift' ? (
+                <div className="flex items-center gap-3 bg-white/5 rounded-xl p-4 border border-white/5">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Banknote className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="text-sm text-white/90 font-medium">
+                    Sent a cash gift
+                  </p>
+                </div>
+              ) : item.type === 'message' ? (
                 <p className="text-sm text-white/80 leading-relaxed italic">
                   "{item.message}"
                 </p>
@@ -548,6 +559,110 @@ const GuestUpload = () => {
       toast({ title: "Error", description: "Failed to send message. Please try again.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitGift = async () => {
+    const finalAmount = giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
+    if (!finalAmount || finalAmount <= 0) {
+      toast({ title: "Invalid Amount", description: "Please select or enter a valid gift amount.", variant: "destructive" });
+      return;
+    }
+    if (!validateName() || !memoryEvent) return;
+
+    setIsSubmitting(true);
+    try {
+      // Check event status
+      const { data: latestEvent, error: fetchError } = await supabase
+        .from('events')
+        .select('is_locked, is_gifting_enabled')
+        .eq('id', memoryEvent.id)
+        .single();
+
+      if (fetchError || !latestEvent) throw new Error("Could not verify event status");
+
+      if (latestEvent.is_locked) {
+        toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
+        setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        return;
+      }
+
+      if (!latestEvent.is_gifting_enabled) {
+        toast({ title: "Gifting Disabled", description: "The host has disabled cash gifting.", variant: "destructive" });
+        setMemoryEvent(prev => prev ? { ...prev, isGiftingEnabled: false } : null);
+        return;
+      }
+
+      // Mock Gift Submission
+      const { data: giftEntry, error } = await supabase
+        .from('media')
+        .insert({
+          event_id: memoryEvent.id,
+          file_type: 'gift',
+          file_url: 'gift-placeholder', // Not used for gifts
+          uploaded_by: guestName.trim(),
+          gift_amount: finalAmount,
+          gift_message: giftMessage.trim(),
+          is_anonymous: isAnonymous
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      // Immediate UI Update
+      if (giftEntry) {
+         setFeedItems(prev => {
+            if (prev.some(item => item.id === giftEntry.id)) return prev;
+            return [{ ...giftEntry, type: 'gift', giftAmount: finalAmount, giftMessage: giftMessage.trim(), is_anonymous: isAnonymous }, ...prev].slice(0, 15);
+         });
+      }
+
+      toast({ title: "🎁 Gift Sent!", description: `You sent ₦${finalAmount.toLocaleString()} to the host.` });
+      setGiftAmount(null);
+      setCustomGiftAmount("");
+      setGiftMessage("");
+      setIsAnonymous(false);
+      setShowGiftPanel(false);
+      setSubmissionType('gift');
+      setIsSubmitted(true);
+      
+      // Gold Confetti
+      const duration = 3000;
+      const end = Date.now() + duration;
+      const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"]; // Red (Primary) + Gold theme
+
+      const frame = () => {
+        confetti({
+          particleCount: 7,
+          angle: 60,
+          spread: 70,
+          origin: { x: 0, y: 0.8 },
+          colors,
+          zIndex: 9999
+        });
+        confetti({
+          particleCount: 7,
+          angle: 120,
+          spread: 70,
+          origin: { x: 1, y: 0.8 },
+          colors,
+          zIndex: 9999
+        });
+
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      };
+      frame();
+
+      triggerHearts();
+
+    } catch (error) {
+       console.error('Error sending gift:', error);
+       toast({ title: "Error", description: "Failed to send gift. Please try again.", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 

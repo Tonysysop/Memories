@@ -10,11 +10,14 @@ export type EventType =
 
 export interface EventUpload {
   id: string;
-  type: 'photo' | 'video' | 'message';
+  type: 'photo' | 'video' | 'message' | 'gift';
   content: string; // Base64 for media, text for messages
   guestName?: string;
   createdAt: string;
   isApproved: boolean;
+  giftAmount?: number;
+  giftMessage?: string;
+  isAnonymous?: boolean;
 }
 
 export interface MemoryEvent {
@@ -29,6 +32,8 @@ export interface MemoryEvent {
   eventDate?: string;
   isUploadsEnabled: boolean;
   isMessagesEnabled: boolean;
+  isGiftingEnabled: boolean;
+  isGiftTotalHidden?: boolean;
   isLocked: boolean;
   isLiveFeedEnabled: boolean;
   uploads: EventUpload[];
