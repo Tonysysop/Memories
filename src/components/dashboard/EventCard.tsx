@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Eye, Lock, Unlock, Trash2, Image as ImageIcon } from "lucide-react";
+import { Eye, Lock, Unlock, Trash2, Image as ImageIcon, Share2 } from "lucide-react";
 import type { MemoryEvent } from "@/types/event";
 import { EVENT_TYPE_LABELS } from "@/types/event";
 import { format, isValid } from "date-fns";
@@ -12,6 +12,7 @@ interface EventCardProps {
   onView: (event: MemoryEvent) => void;
   onDelete: (eventId: string) => void;
   onToggleLock: (eventId: string, isLocked: boolean) => void;
+  onShare?: (event: MemoryEvent) => void;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ const EventCard = ({
   onView,
   onDelete,
   onToggleLock,
+  onShare,
   className,
 }: EventCardProps) => {
   const photoCount = event.uploads.filter((u) => u.type === 'photo').length;
@@ -83,6 +85,16 @@ const EventCard = ({
               ) : (
                 <Lock className="h-5 w-5" />
               )}
+            </motion.button>
+
+            <motion.button
+              onClick={() => onShare?.(event)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 backdrop-blur-md transition-colors hover:bg-indigo-600"
+              title="Quick Share"
+            >
+              <Share2 className="h-5 w-5" />
             </motion.button>
 
             <motion.button
