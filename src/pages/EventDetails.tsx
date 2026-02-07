@@ -251,7 +251,7 @@ const EventDetail = () => {
     try {
       await updateEvent(event.id, { [key]: value });
       await refreshEvents();
-    } catch (error) {
+    } catch {
       // Revert on error
       const originalEvent = getEventById(event.id);
       if (originalEvent) setEvent(originalEvent);
