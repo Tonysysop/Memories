@@ -16,6 +16,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -96,6 +104,7 @@ const Auth = () => {
   const mode = searchParams.get("mode");
   const [isLogin, setIsLogin] = useState(mode === "login");
   const [isLoading, setIsLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const navigate = useNavigate();
 
   const form = useForm<SignupFormData | LoginFormData>({
@@ -146,7 +155,13 @@ const Auth = () => {
           }
         }
 
-        toast.success("Account created! Please check your email to confirm.");
+        if (authData.session) {
+          toast.success("Account created successfully! Welcome to Memories.");
+          navigate("/dashboard");
+        } else {
+          setShowConfirmModal(true);
+          setIsLogin(true); // Switch to login view after signup
+        }
       }
     } catch (error: any) {
       toast.error(error.message);
@@ -376,6 +391,35 @@ const Auth = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+              <Sparkles className="w-6 h-6 text-primary" />
+            </div>
+            <DialogTitle className="text-center text-xl font-display">Confirm Your Email</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              We've sent a verification link to your email. Please click the link in the message to activate your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground flex items-start gap-3">
+            <Mail className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              Once confirmed, you'll be able to sign in and start creating events. Can't find the email? Check your spam folder.
+            </p>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button 
+                type="button" 
+                className="w-full sm:w-32" 
+                onClick={() => setShowConfirmModal(false)}
+            >
+              Got it!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
