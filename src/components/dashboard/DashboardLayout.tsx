@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import DashboardSidebar from "./DashboardSidebar";
 import CreateEventDialog from "./CreateEventDialog";
 import { useEvents } from "@/hooks/useEvent";
+import PageTransition from "@/components/PageTransition";
 import type { EventType } from "@/types/event";
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
@@ -103,7 +104,9 @@ const DashboardLayout = () => {
           isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64" // Desktop padding
         )}
       >
-        <Outlet />
+        <PageTransition>
+          <Outlet context={{ setIsCreateDialogOpen }} />
+        </PageTransition>
       </main>
 
       <CreateEventDialog

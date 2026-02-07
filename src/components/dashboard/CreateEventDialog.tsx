@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { EventType } from "@/types/event";
 import Cropper from "react-easy-crop";
 import { getCroppedImg } from "@/lib/imageUtils";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Eye, Share2, Trash2 } from "lucide-react";
+import { EVENT_TYPE_LABELS } from "@/types/event";
+import { format } from "date-fns";
+import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -87,116 +91,193 @@ const CreateEventDialog = ({ open, onOpenChange, onCreate }: CreateEventDialogPr
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Create New Event</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="col-span-3"
-                placeholder="Ex: Mom's 60th Birthday"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="type" className="text-right">
-                Type
-              </Label>
-              <Select value={type} onValueChange={(value) => setType(value as EventType)}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="birthday">Birthday</SelectItem>
-                  <SelectItem value="wedding">Wedding</SelectItem>
-                  <SelectItem value="anniversary">Anniversary</SelectItem>
-                  <SelectItem value="memorial">Memorial</SelectItem>
-                  <SelectItem value="trip">Trip</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {type === "other" && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="customType" className="text-right">
-                  Custom Type
-                </Label>
-                <Input
-                  id="customType"
-                  value={customType}
-                  onChange={(e) => setCustomType(e.target.value)}
-                  className="col-span-3"
-                  placeholder="Ex: Graduation"
-                  required
-                />
-              </div>
-            )}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="date" className="text-right">
-                Date
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Cover</Label>
-              <div className="col-span-3">
-                {croppedImage ? (
-                  <div className="relative group rounded-full overflow-hidden border-2 border-primary/20 aspect-square w-24 mx-auto">
-                    <img src={croppedImage} alt="Cropped" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setCroppedImage(null)}
-                      className="absolute top-0 right-0 p-1 bg-background/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsCropDialogOpen(true)}
-                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity text-white text-[10px] font-medium"
-                    >
-                      Change
-                    </button>
+        <DialogContent className="sm:max-w-[700px] bg-background/95 backdrop-blur-xl border-border/50 p-0 overflow-hidden">
+          <div className="flex flex-col lg:flex-row h-full">
+            {/* Form Section */}
+            <div className="flex-1 p-6 lg:border-r border-border/50">
+              <DialogHeader className="mb-6">
+                <DialogTitle className="text-2xl font-display font-bold">Create New Event</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
+                    Event Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Mom's 60th Birthday"
+                    required
+                    className="h-11 bg-muted/50 border-border/50 focus:border-primary/50 transition-colors"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="type" className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
+                      Event Type
+                    </Label>
+                    <Select value={type} onValueChange={(value) => setType(value as EventType)}>
+                      <SelectTrigger className="h-11 bg-muted/50 border-border/50">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="birthday">Birthday</SelectItem>
+                        <SelectItem value="wedding">Wedding</SelectItem>
+                        <SelectItem value="anniversary">Anniversary</SelectItem>
+                        <SelectItem value="memorial">Memorial</SelectItem>
+                        <SelectItem value="trip">Trip</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-20 border-dashed border-2 flex flex-col gap-2"
-                    onClick={() => fileInputRef.current?.click()}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="date" className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
+                      Event Date
+                    </Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="h-11 bg-muted/50 border-border/50"
+                    />
+                  </div>
+                </div>
+
+                {type === "other" && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-2"
                   >
-                    <Upload className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Choose & Crop Hero Image</span>
-                  </Button>
+                    <Label htmlFor="customType" className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
+                      Custom Type
+                    </Label>
+                    <Input
+                      id="customType"
+                      value={customType}
+                      onChange={(e) => setCustomType(e.target.value)}
+                      placeholder="Ex: Graduation"
+                      required
+                      className="h-11 bg-muted/50 border-border/50"
+                    />
+                  </motion.div>
                 )}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
-              </div>
+
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Cover Image</Label>
+                  {croppedImage ? (
+                    <div className="relative group rounded-2xl overflow-hidden border-2 border-primary/20 aspect-[21/9] w-full bg-muted">
+                      <img src={croppedImage} alt="Cropped" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="h-8 rounded-lg text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          Change
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => setCroppedImage(null)}
+                          className="h-8 w-8 rounded-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-24 border-dashed border-2 flex flex-col gap-2 hover:bg-muted/50 hover:border-primary/50 transition-all rounded-2xl"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black">Upload Hero Photo</span>
+                    </Button>
+                  )}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full h-12 text-base font-bold rounded-xl mt-6">
+                  Create Event
+                </Button>
+              </form>
             </div>
 
-            <DialogFooter>
-              <Button type="submit" className="w-full">Create Event</Button>
-            </DialogFooter>
-          </form>
+            {/* Preview Section */}
+            <div className="hidden lg:flex w-[280px] bg-muted/30 p-6 flex-col items-center justify-center gap-6">
+              <div className="w-full text-center space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Live Preview</p>
+                <p className="text-xs text-muted-foreground font-medium">How your event will look</p>
+              </div>
+
+              <div className="w-full perspective-[1000px]">
+                <motion.div
+                  animate={{ 
+                    rotateY: name ? 0 : 5,
+                    rotateX: name ? 0 : 2
+                  }}
+                  className="w-full shadow-2xl rounded-2xl overflow-hidden border border-border/50 bg-card overflow-hidden"
+                >
+                  <div className="relative aspect-video overflow-hidden bg-muted">
+                    {croppedImage ? (
+                      <img
+                        src={croppedImage}
+                        alt="Preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted-foreground/20">
+                        <ImageIcon className="h-10 w-10" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+                    
+                    {/* Action Overlay simulation */}
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity bg-background/20 backdrop-blur-[2px]">
+                      <div className="h-7 w-7 rounded-full bg-primary/80 flex items-center justify-center"><Eye className="h-3.5 w-3.5 text-white" /></div>
+                      <div className="h-7 w-7 rounded-full bg-indigo-500/80 flex items-center justify-center"><Share2 className="h-3.5 w-3.5 text-white" /></div>
+                      <div className="h-7 w-7 rounded-full bg-destructive/80 flex items-center justify-center"><Trash2 className="h-3.5 w-3.5 text-white" /></div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    <h3 className="text-base font-bold tracking-tight truncate">
+                      {name || "Event Name"}
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      {date ? format(new Date(date), 'MMM d, yyyy') : "No date set"} • 0 items
+                    </p>
+                    <div className="flex gap-1.5 pt-1">
+                      <Badge variant="secondary" className="bg-secondary/50 px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider">
+                        {type === 'other' && customType ? customType : EVENT_TYPE_LABELS[type as EventType]}
+                      </Badge>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+              
+              <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 rounded-full border border-primary/10">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="text-[9px] font-bold text-primary/70 uppercase tracking-widest">Real-time update</span>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

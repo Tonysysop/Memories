@@ -1,11 +1,14 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useEvents } from "@/hooks/useEvent";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import EventCard from "@/components/dashboard/EventCard";
+import EmptyState from "@/components/ui/EmptyState";
 import { Calendar, Image, Users } from "lucide-react";
 import type { MemoryEvent } from "@/types/event";
 import { useState } from "react"; // Added useState import
 import DeleteEventDialog from "@/components/dashboard/DeleteEventDialog"; // Added import
+import QuickShareDialog from "@/components/dashboard/QuickShareDialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Note: We might need to access the "open create dialog" from the layout if we want this button to work.
 // For now, I'll temporarily hide the "New Event" button here or we can use an Outlet context.
@@ -15,11 +18,17 @@ const DashboardHome = () => {
   const { user } = useAuth();
   const { events, isLoading: eventsLoading, updateEvent } = useEvents();
   const navigate = useNavigate();
+  const { setIsCreateDialogOpen } = useOutletContext<{ setIsCreateDialogOpen: (open: boolean) => void }>();
 
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; id: string; name: string }>({
     isOpen: false,
     id: '',
     name: ''
+  });
+
+  const [shareDialog, setShareDialog] = useState<{ isOpen: boolean; event: { id: string, name: string, shareCode: string } | null }>({
+    isOpen: false,
+    event: null
   });
 
   const handleViewEvent = (event: MemoryEvent) => {
@@ -35,6 +44,13 @@ const DashboardHome = () => {
 
   const handleToggleLock = (eventId: string, isLocked: boolean) => {
     updateEvent(eventId, { isLocked });
+  };
+
+  const handleShareEvent = (event: MemoryEvent) => {
+    setShareDialog({
+      isOpen: true,
+      event: { id: event.id, name: event.name, shareCode: event.shareCode }
+    });
   };
 
   // Stats
@@ -99,20 +115,28 @@ const DashboardHome = () => {
         </div>
 
         {eventsLoading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Loading events...
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-4">
+                <Skeleton className="aspect-video w-full rounded-2xl" />
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : events.length === 0 ? (
-          <div className="text-center py-16 bg-card rounded-xl border border-border">
-            <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No events yet</h3>
-            <p className="text-muted-foreground mb-6">
-              Create your first event to start collecting memories
-            </p>
-            {/* Note: This button won't work without context from layout. 
-                For now I will comment it out or we can assume user uses sidebar.
-            */}
-          </div>
+          <EmptyState 
+            title="No events yet" 
+            description="Create your first event to start collecting memories with your friends and family."
+            actionLabel="Create My First Event"
+            onAction={() => setIsCreateDialogOpen(true)}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event: MemoryEvent) => (
@@ -122,6 +146,7 @@ const DashboardHome = () => {
                 onView={handleViewEvent}
                 onDelete={handleDeleteEvent}
                 onToggleLock={handleToggleLock}
+                onShare={handleShareEvent}
               />
             ))}
           </div>
@@ -133,6 +158,12 @@ const DashboardHome = () => {
         onClose={() => setDeleteDialog(prev => ({ ...prev, isOpen: false }))}
         eventId={deleteDialog.id}
         eventName={deleteDialog.name}
+      />
+
+      <QuickShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog(prev => ({ ...prev, isOpen: false }))}
+        event={shareDialog.event}
       />
     </div>
   );

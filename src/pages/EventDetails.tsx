@@ -23,8 +23,13 @@ import {
   Camera,
   Loader2,
   Menu,
-  X
+  X,
+  TrendingUp,
+  Activity,
+  PieChart,
+  Plus
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { QRCodeSVG } from "qrcode.react";
 import { useToast } from "@/hooks/use-toast";
 import { EVENT_TYPE_LABELS } from "@/types/event";
@@ -86,24 +91,43 @@ const EventDetail = () => {
     }
   }, [user, authLoading, navigate]);
 
-   const fetchUploads = async (eventId: string) => {
+   const [isLoadingMore, setIsLoadingMore] = useState(false);
+   const [hasMore, setHasMore] = useState(true);
+   const [page, setPage] = useState(0);
+   const ITEMS_PER_PAGE = 12;
+
+   const fetchUploads = async (eventId: string, pageNum: number = 0) => {
       try {
+          if (pageNum === 0) setEvent(prev => prev ? { ...prev, uploads: [] } : null);
+          setIsLoadingMore(true);
+
+          const start = pageNum * ITEMS_PER_PAGE;
+          const end = start + ITEMS_PER_PAGE - 1;
+
           // Fetch Media
-          const { data: mediaData } = await supabase
+          const { data: mediaData, error: mediaError } = await supabase
               .from('media')
               .select('*')
-              .eq('event_id', eventId);
+              .eq('event_id', eventId)
+              .order('created_at', { ascending: false })
+              .range(start, end);
           
+          if (mediaError) throw mediaError;
+
           // Fetch Messages
-          const { data: messageData } = await supabase
+          const { data: messageData, error: msgError } = await supabase
               .from('messages')
               .select('*')
-              .eq('event_id', eventId);
+              .eq('event_id', eventId)
+              .order('created_at', { ascending: false })
+              .range(start, end);
 
-          const uploads: EventUpload[] = [];
+          if (msgError) throw msgError;
+
+          const newUploads: EventUpload[] = [];
 
           if (mediaData) {
-              uploads.push(...mediaData.map(m => ({
+              newUploads.push(...mediaData.map(m => ({
                   id: m.id,
                   type: m.file_type as 'photo' | 'video',
                   content: m.file_url,
@@ -114,7 +138,7 @@ const EventDetail = () => {
           }
 
           if (messageData) {
-              uploads.push(...messageData.map(m => ({
+              newUploads.push(...messageData.map(m => ({
                   id: m.id,
                   type: 'message' as const,
                   content: m.message,
@@ -125,13 +149,30 @@ const EventDetail = () => {
           }
           
           // Sort by newest first
-          uploads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          newUploads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-          setEvent(prev => prev ? { ...prev, uploads } : null);
+          setEvent(prev => {
+            if (!prev) return null;
+            const existingIds = new Set(prev.uploads.map(u => u.id));
+            const uniqueNewUploads = newUploads.filter(u => !existingIds.has(u.id));
+            return { ...prev, uploads: [...prev.uploads, ...uniqueNewUploads] };
+          });
+
+          setHasMore(newUploads.length >= ITEMS_PER_PAGE);
+          setIsLoadingMore(false);
 
       } catch (error) {
           console.error("Error fetching uploads", error);
+          setIsLoadingMore(false);
       }
+  };
+
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore && event) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchUploads(event.id, nextPage);
+    }
   };
 
   useEffect(() => {
@@ -144,10 +185,38 @@ const EventDetail = () => {
     }
   }, [id, events]); // added events dependencies so it updates when useEvents loads
 
-  if (authLoading || !user) {
+  if (authLoading || !event) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
+              <Skeleton className="aspect-video w-full rounded-xl" />
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <Skeleton className="h-10 w-24" />
+                  <Skeleton className="h-10 w-24" />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <Skeleton key={i} className="aspect-square rounded-xl" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -358,38 +427,64 @@ const EventDetail = () => {
                           <p className="text-sm text-muted-foreground px-4">Share the QR code with your guests to start collecting memories</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 font-inter">
-                          {photos.map((photo) => (
+                        <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 font-inter">
+                          {photos.map((photo, index) => (
                             <div 
                               key={photo.id} 
-                              className="group relative aspect-square rounded-xl overflow-hidden bg-muted cursor-zoom-in"
-                              onClick={() => openLightbox(photos, photos.indexOf(photo))}
+                              className="relative break-inside-avoid rounded-xl overflow-hidden bg-muted cursor-zoom-in group mb-4"
+                              onClick={() => openLightbox(photos, index)}
                             >
                               <img 
                                 src={photo.content} 
-                                alt="Guest photo"
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                alt="Guest upload"
+                                className="w-full h-auto object-cover transition-all duration-500 group-hover:scale-105"
+                                loading="lazy"
                               />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Button 
-                                  variant="secondary" 
-                                  size="icon"
-                                  className="h-9 w-9 bg-white/20 backdrop-blur-md border-white/20 text-white hover:bg-white/40"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteUpload(photo.id);
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                              {photo.guestName && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                                  <p className="text-[10px] text-white/90 font-medium truncate">by {photo.guestName}</p>
+                              
+                              {/* Hover Overlay */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3">
+                                <div className="flex justify-end">
+                                  <Button 
+                                    variant="destructive" 
+                                    size="icon"
+                                    className="h-8 w-8 bg-white/20 backdrop-blur-md border-white/20 text-white hover:bg-destructive/80"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteUpload(photo.id);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
                                 </div>
-                              )}
+                                
+                                {photo.guestName && (
+                                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg p-2 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                                    <p className="text-[10px] text-white/90 font-medium truncate uppercase tracking-wider">
+                                      shared by {photo.guestName}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                      {hasMore && (
+                        <div className="mt-12 flex justify-center pb-8 px-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={loadMore} 
+                            disabled={isLoadingMore}
+                            className="h-12 px-10 rounded-xl font-bold gap-2 border-primary/20 hover:bg-primary/5 active:scale-95 transition-all w-full sm:w-auto overflow-hidden group relative"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            {isLoadingMore ? (
+                              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                            ) : (
+                              <Plus className="w-5 h-5 text-primary" />
+                            )}
+                            {isLoadingMore ? "Gathering Memories..." : "Load More Photos"}
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -443,6 +538,20 @@ const EventDetail = () => {
                           ))}
                         </div>
                       )}
+                      {hasMore && (
+                        <div className="mt-12 flex justify-center pb-8 px-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={loadMore} 
+                            disabled={isLoadingMore}
+                            className="h-12 px-10 rounded-xl font-bold gap-2 border-primary/20 hover:bg-primary/5 active:scale-95 transition-all w-full sm:w-auto overflow-hidden group relative"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            {isLoadingMore ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+                            {isLoadingMore ? "Loading..." : "Load More Videos"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 },
@@ -482,6 +591,20 @@ const EventDetail = () => {
                           ))}
                         </div>
                       )}
+                      {hasMore && (
+                        <div className="mt-12 flex justify-center pb-8 px-4">
+                          <Button 
+                            variant="outline" 
+                            onClick={loadMore} 
+                            disabled={isLoadingMore}
+                            className="h-12 px-10 rounded-xl font-bold gap-2 border-primary/20 hover:bg-primary/5 active:scale-95 transition-all w-full sm:w-auto overflow-hidden group relative"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            {isLoadingMore ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+                            {isLoadingMore ? "Loading..." : "Load More Messages"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 }
@@ -493,7 +616,7 @@ const EventDetail = () => {
           <div className="hidden lg:block space-y-6">
             <ShareCard shareUrl={shareUrl} event={event} handleCopyLink={handleCopyLink} />
             <SettingsCard event={event} handleToggleSetting={handleToggleSetting} />
-            <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} />
+            <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} uploads={event.uploads} />
           </div>
         </div>
 
@@ -574,12 +697,14 @@ const EventDetail = () => {
         photos={photos}
         videos={videos}
         messages={messages}
+        event_id={event.id}
+        uploads={event.uploads}
       />
     </div>
   );
 };
 
-function MobileDrawer({ isOpen, onClose, shareUrl, event, handleCopyLink, handleToggleSetting, photos, videos, messages }: any) {
+function MobileDrawer({ isOpen, onClose, shareUrl, event, handleCopyLink, handleToggleSetting, photos, videos, messages, uploads }: any) {
   return (
     <AnimatePresence mode="wait">
       {isOpen && (
@@ -609,7 +734,7 @@ function MobileDrawer({ isOpen, onClose, shareUrl, event, handleCopyLink, handle
               <div className="space-y-6">
                 <ShareCard shareUrl={shareUrl} event={event} handleCopyLink={handleCopyLink} />
                 <SettingsCard event={event} handleToggleSetting={handleToggleSetting} />
-                <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} />
+                <StatsCard photos={photos} videos={videos} messages={messages} total={event.uploads.length} uploads={uploads} />
               </div>
             </div>
           </motion.div>
@@ -714,26 +839,151 @@ function SettingsCard({ event, handleToggleSetting }: any) {
   );
 }
 
-function StatsCard({ photos, videos, messages, total }: any) {
+function ProgressRing({ value, size = 120, strokeWidth = 12, label, sublabel }: { value: number, size?: number, strokeWidth?: number, label: string, sublabel: string }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (value / 100) * circumference;
+
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-      <h3 className="font-semibold mb-4 text-primary">Statistics</h3>
-      <div className="space-y-3">
-        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
-          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Photos</span>
-          <span className="font-bold">{photos.length}</span>
+    <div className="relative flex flex-col items-center">
+      <svg width={size} height={size} className="transform -rotate-90 drop-shadow-lg">
+        {/* Background Ring */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          className="text-muted/20"
+        />
+        {/* Progress Ring */}
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          strokeLinecap="round"
+          className="text-primary"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
+        <span className="text-2xl font-black text-foreground leading-none">{label}</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">{sublabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityChart({ data }: { data: number[] }) {
+  if (data.length === 0) return null;
+  const max = Math.max(...data, 1);
+  
+  return (
+    <div className="flex items-end justify-between h-20 gap-1.5 w-full bg-muted/20 rounded-xl p-4 border border-border/50">
+      {data.map((val, i) => {
+        const height = (val / max) * 100;
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center group">
+            <motion.div
+              initial={{ height: 0 }}
+              animate={{ height: `${height}%` }}
+              transition={{ duration: 0.8, delay: i * 0.05, ease: "backOut" }}
+              className={`w-full rounded-t-sm transition-colors cursor-help ${
+                height > 0 ? "bg-primary/40 group-hover:bg-primary" : "bg-muted/30"
+              }`}
+            />
+            {val > 0 && (
+              <div className="absolute opacity-0 group-hover:opacity-100 -top-8 bg-foreground text-background text-[10px] px-2 py-1 rounded font-bold pointer-events-none transition-opacity whitespace-nowrap z-50">
+                {val} items
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatsCard({ photos, videos, messages, total, uploads }: { photos: any[], videos: any[], messages: any[], total: number, uploads: any[] }) {
+  const photoRatio = total > 0 ? (photos.length / (photos.length + videos.length || 1)) * 100 : 0;
+  
+  // Group activities by hour for the last 12 hours
+  const now = new Date();
+  const timelineData = Array.from({ length: 12 }).map((_, i) => {
+    const hourAgo = new Date(now.getTime() - (11 - i) * 60 * 60 * 1000);
+    const nextHour = new Date(now.getTime() - (10 - i) * 60 * 60 * 1000);
+    return uploads.filter(u => {
+      const date = new Date(u.createdAt);
+      return date >= hourAgo && date < nextHour;
+    }).length;
+  });
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-8">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-primary flex items-center gap-2">
+          <PieChart className="w-4 h-4" />
+          Event Insights
+        </h3>
+        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">{total} Total Items</Badge>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-center gap-8 py-2">
+        <div className="flex-shrink-0">
+          <ProgressRing 
+            value={photoRatio} 
+            label={`${photos.length}`} 
+            sublabel="Photos" 
+          />
         </div>
-        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
-          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Videos</span>
-          <span className="font-bold">{videos.length}</span>
+        <div className="flex-1 space-y-4 w-full">
+           <div className="space-y-2">
+             <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+                <span>Content Split</span>
+                <span className="text-foreground">{Math.round(photoRatio)}% Photo</span>
+             </div>
+             <div className="h-2 w-full bg-muted rounded-full overflow-hidden flex">
+                <div style={{ width: `${photoRatio}%` }} className="h-full bg-primary" />
+                <div style={{ width: `${100 - photoRatio}%` }} className="h-full bg-indigo-500" />
+             </div>
+           </div>
+           
+           <div className="grid grid-cols-3 gap-2">
+              <div className="bg-muted/30 rounded-lg p-2 text-center">
+                <p className="text-[8px] text-muted-foreground uppercase font-black mb-1">Photos</p>
+                <p className="font-bold text-sm">{photos.length}</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-2 text-center">
+                <p className="text-[8px] text-muted-foreground uppercase font-black mb-1">Videos</p>
+                <p className="font-bold text-sm">{videos.length}</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-2 text-center">
+                <p className="text-[8px] text-muted-foreground uppercase font-black mb-1">Notes</p>
+                <p className="font-bold text-sm">{messages.length}</p>
+              </div>
+           </div>
         </div>
-        <div className="flex justify-between items-center bg-muted/30 p-2 rounded-lg">
-          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Messages</span>
-          <span className="font-bold">{messages.length}</span>
+      </div>
+
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
+            <Activity className="w-3 h-3" />
+            Live Activity Trends
+          </h4>
+          <span className="text-[10px] text-muted-foreground font-medium">Last 12h</span>
         </div>
-        <div className="border-t border-border pt-4 flex justify-between items-center">
-          <span className="text-sm font-bold text-muted-foreground">TOTAL CONTENT</span>
-          <span className="font-black text-2xl text-primary">{total}</span>
+        <ActivityChart data={timelineData} />
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 font-medium">
+          <TrendingUp className="w-3 h-3 text-primary" />
+          <span>Real-time engagement tracking active.</span>
         </div>
       </div>
     </div>
