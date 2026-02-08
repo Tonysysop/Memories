@@ -1264,7 +1264,6 @@ const GuestUpload = () => {
                         type="file"
                         accept="image/*,video/*"
                         multiple
-                        capture="environment"
                         className="hidden"
                         onChange={handleFileSelect}
                       />
