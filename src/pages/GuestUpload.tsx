@@ -1373,9 +1373,9 @@ const GuestUpload = () => {
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 50 }}
-                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/20 backdrop-blur-lg"
                   >
-                   <div className="w-full max-w-sm bg-black/60 backdrop-blur-2xl border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden ring-1 ring-white/5">
+                   <div className="w-full max-w-sm bg-white/90 dark:bg-black/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
                      {/* Decorative Elements */}
                      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                      <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
@@ -1383,32 +1383,32 @@ const GuestUpload = () => {
                      <div className="relative">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
+                                <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-center backdrop-blur-md">
                                     <Banknote className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-display font-bold text-white tracking-tight">Send a Gift</h3>
-                                    <p className="text-white/40 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
+                                    <h3 className="text-xl font-display font-bold text-foreground tracking-tight">Send a Gift</h3>
+                                    <p className="text-muted-foreground/60 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+                            <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
                         
                             <div className="mb-6 space-y-2">
-                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
+                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
                                 <Input
                                     placeholder="Enter your full name"
                                     value={guestName}
                                     onChange={(e) => setGuestName(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-xl h-12 focus:border-primary/50 focus:bg-white/10 transition-all px-4"
+                                    className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-xl h-12 focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all px-4"
                                 />
                             </div>
 
                         <div className="space-y-6">
                             <div className="space-y-3">
-                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
+                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
                                 <div className="grid grid-cols-2 gap-3">
                                     {[1000, 2000, 5000, 10000].map((amount) => (
                                         <button
@@ -1420,7 +1420,7 @@ const GuestUpload = () => {
                                             className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${
                                                 giftAmount === amount 
                                                 ? "bg-primary border-primary text-white shadow-lg shadow-primary/25" 
-                                                : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20"
+                                                : "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
                                             }`}
                                         >
                                             <span className="text-[10px] opacity-60 font-medium">₦</span>
@@ -1448,17 +1448,17 @@ const GuestUpload = () => {
                                         setCustomGiftAmount(e.target.value);
                                         setGiftAmount(null);
                                     }}
-                                    className={`pl-10 h-14 bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-2xl focus:border-primary/50 focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
+                                    className={`pl-10 h-14 bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-[10px] text-white/40 uppercase font-bold tracking-[0.2em] pl-1">Personal Note</Label>
+                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Gift Message</Label>
                                 <Textarea
-                                    placeholder="Add a sweet message for the host..."
+                                    placeholder="Add a sweet message for the couple..."
                                     value={giftMessage}
                                     onChange={(e) => setGiftMessage(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-white/20 min-h-[100px] rounded-2xl resize-none p-4 focus:border-primary/50 focus:bg-white/10 transition-all"
+                                    className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl min-h-[100px] resize-none focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all p-4"
                                 />
                             </div>
 
@@ -1477,7 +1477,7 @@ const GuestUpload = () => {
                             <div className="pt-2 space-y-4">
                                 <div className="flex items-center gap-2 justify-center bg-white/5 rounded-full py-2 px-4 border border-white/5">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    <p className="text-[10px] text-white/40 font-medium tracking-wide">
+                                    <p className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
                                         Secure Payment via Paystack (Demo)
                                     </p>
                                 </div>

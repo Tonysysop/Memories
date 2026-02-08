@@ -446,7 +446,7 @@ const EventDetail = () => {
                               />
                               
                               {/* Hover Overlay */}
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3">
+                              <div className="absolute inset-0 bg-black/40 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3">
                                 <div className="flex justify-end">
                                   <Button 
                                     variant="destructive" 
@@ -527,10 +527,10 @@ const EventDetail = () => {
                                   <Video className="w-6 h-6 text-white" />
                                 </div>
                               </div>
-                              <Button 
+                                <Button 
                                 variant="destructive" 
                                 size="icon"
-                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                                className="absolute top-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity h-8 w-8"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteUpload(video.id);
@@ -586,7 +586,7 @@ const EventDetail = () => {
                               <Button 
                                 variant="ghost" 
                                 size="icon"
-                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
+                                className="absolute top-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive"
                                 onClick={() => handleDeleteUpload(message.id)}
                               >
                                 <Trash2 className="w-4 h-4" />

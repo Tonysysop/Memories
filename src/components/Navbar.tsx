@@ -57,7 +57,7 @@ const Navbar = () => {
               </div>
             ) : (
               <>
-                <Button variant="ghost" className="hidden sm:inline-flex text-sm font-medium" asChild>
+                <Button variant="ghost" className="inline-flex text-sm font-medium" asChild>
                   <Link to="/auth?mode=login">Sign In</Link>
                 </Button>
                 <Button className="text-sm font-medium px-5" asChild>
