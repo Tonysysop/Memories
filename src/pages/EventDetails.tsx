@@ -4,12 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEvents } from "@/hooks/useEvent";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { NativeTabs } from "@/components/NativeTab";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { 
   ArrowLeft, 
   Copy, 
@@ -33,14 +29,17 @@ import {
   Mail
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { QRCodeSVG } from "qrcode.react";
 import { useToast } from "@/hooks/use-toast";
 import { EVENT_TYPE_LABELS } from "@/types/event";
-import type { EventType, EventUpload } from "@/types/event";
+import type { EventUpload } from "@/types/event";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { Lightbox } from "@/components/Lightbox";
 import { AnimatePresence, motion } from "framer-motion";
+import { WizardForm } from "@/components/WizardForm";
 
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -53,24 +52,9 @@ const EventDetail = () => {
   const [event, setEvent] = useState(id ? getEventById(id) : null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    date: '',
-    type: 'wedding' as EventType,
-    customType: ''
-  });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (event) {
-      setEditForm({
-        name: event.name,
-        date: event.eventDate || '',
-        type: event.type,
-        customType: event.customType || ''
-      });
-    }
-  }, [event?.id]); // Update form when event record changes
+
 
   // Lightbox state
   const [lightbox, setLightbox] = useState({
@@ -280,16 +264,36 @@ const EventDetail = () => {
   const totalGiftsAmount = gifts.reduce((acc, curr) => acc + (curr.giftAmount || 0), 0);
 
 
-  const handleUpdateEvent = async () => {
-    await updateEvent(event.id, {
-      name: editForm.name,
-      eventDate: editForm.date,
-      type: editForm.type,
-      customType: editForm.customType
-    });
-    const updated = getEventById(event.id);
-    if (updated) setEvent(updated); // Force update local state
-    setIsEditOpen(false);
+  const handleWizardComplete = async (data: any) => {
+    try {
+      await updateEvent(event.id, {
+        name: data.name,
+        type: data.type,
+        customType: data.customType,
+        eventDate: data.eventDate,
+        groomFirstName: data.groomFirstName,
+        groomLastName: data.groomLastName,
+        brideFirstName: data.brideFirstName,
+        brideLastName: data.brideLastName,
+        religiousRiteVenue: data.religiousRiteVenue,
+        religiousRiteStartTime: data.religiousRiteStartTime,
+        religiousRiteEndTime: data.religiousRiteEndTime,
+        receptionVenue: data.receptionVenue,
+        receptionStartTime: data.receptionStartTime,
+        receptionEndTime: data.receptionEndTime,
+        isLocationPublic: data.isLocationPublic,
+        coverImage: data.coverImage,
+      });
+      
+      await refreshEvents();
+      const updated = getEventById(event.id);
+      if (updated) setEvent(updated);
+      setIsEditOpen(false);
+      toast({ title: "Event updated!", description: "Changes have been saved successfully." });
+    } catch (error) {
+      console.error("Error updating event via wizard:", error);
+      toast({ title: "Error", description: "Failed to update event.", variant: "destructive" });
+    }
   };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,15 +351,7 @@ const EventDetail = () => {
             </div>
             
             <div className="flex items-center gap-2 sm:ml-auto">
-              <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => {
-                  setEditForm({
-                      name: event.name,
-                      date: event.eventDate || '',
-                      type: event.type,
-                      customType: event.customType || ''
-                  });
-                  setIsEditOpen(true);
-              }}>
+              <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setIsEditOpen(true)}>
                   Edit Details
               </Button>
 
@@ -689,60 +685,16 @@ const EventDetail = () => {
         </div>
 
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Edit Event Details</DialogTitle>
-                    <DialogDescription>
-                        Update your event information below. Changes will be saved immediately.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label>Event Name</Label>
-                        <Input 
-                            value={editForm.name} 
-                            onChange={(e) => setEditForm(prev => ({...prev, name: e.target.value}))}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Event Date</Label>
-                        <Input 
-                            type="date"
-                            value={editForm.date} 
-                            onChange={(e) => setEditForm(prev => ({...prev, date: e.target.value}))}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                       <Label>Event Type</Label>
-                        <Select 
-                            value={editForm.type} 
-                            onValueChange={(val: any) => setEditForm(prev => ({...prev, type: val}))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Object.entries(EVENT_TYPE_LABELS).map(([key, label]) => (
-                                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {editForm.type === 'other' && (
-                        <div className="space-y-2">
-                            <Label>Custom Type</Label>
-                            <Input 
-                                value={editForm.customType} 
-                                onChange={(e) => setEditForm(prev => ({...prev, customType: e.target.value}))}
-                                placeholder="E.g. Corporate Retreat"
-                            />
-                        </div>
-                    )}
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                    <Button onClick={handleUpdateEvent}>Save Changes</Button>
-                </DialogFooter>
+            <DialogContent className="sm:max-w-4xl p-0 overflow-hidden border-none bg-transparent shadow-none" showCloseButton={false}>
+                <WizardForm 
+                  isEdit
+                  initialData={{
+                    ...event,
+                    eventDate: event.eventDate
+                  }}
+                  onComplete={handleWizardComplete}
+                  onCancel={() => setIsEditOpen(false)}
+                />
             </DialogContent>
         </Dialog>
       </main>

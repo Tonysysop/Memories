@@ -19,7 +19,13 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowUp,
-  Banknote
+  Banknote,
+  Menu,
+  MapPin,
+  Clock,
+  Calendar,
+  Users,
+  ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { MemoryEvent, EventType } from "@/types/event";
@@ -34,61 +40,117 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
   if (isLoading) return null;
   if (items.length === 0) return null;
 
+  // Grouping logic: Clusters consecutive media items from the same user
+  const groupedItems = items.reduce((acc: any[], current) => {
+    const prev = acc[acc.length - 1];
+    
+    // Criteria for grouping:
+    // 1. Same user
+    // 2. Both are media (photo/video)
+    // 3. Within 5 minutes of each other
+    const isConsecutiveMedia = prev && 
+      (prev.uploaded_by === current.uploaded_by || prev.name === current.name) &&
+      (prev.type === 'photo' || prev.type === 'video') &&
+      (current.type === 'photo' || current.type === 'video') &&
+      Math.abs(new Date(prev.created_at).getTime() - new Date(current.created_at).getTime()) < 5 * 60 * 1000;
+
+    if (isConsecutiveMedia) {
+      if (!prev.isGroup) {
+        const firstItem = acc.pop();
+        acc.push({
+          id: `group-${firstItem.id}`,
+          type: 'group',
+          uploaded_by: firstItem.uploaded_by,
+          name: firstItem.name,
+          created_at: firstItem.created_at,
+          items: [firstItem, current],
+          isGroup: true
+        });
+      } else {
+        prev.items.push(current);
+      }
+    } else {
+      acc.push(current);
+    }
+    return acc;
+  }, []);
+
   return (
-    <div className="space-y-4">
+    <div className="columns-2 sm:columns-3 gap-4 space-y-4">
         <AnimatePresence initial={false}>
-          {items.map((item) => (
+          {groupedItems.map((item, index) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden p-4 shadow-xl"
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              whileInView={{ opacity: 1, scale: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ 
+                duration: 0.5, 
+                delay: Math.min(index * 0.1, 0.3),
+                ease: [0.21, 1.11, 0.81, 0.99]
+              }}
+              className="break-inside-avoid mb-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden p-3 shadow-xl hover:bg-white/10 transition-colors"
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase">
-                  {item.is_anonymous && item.type === 'gift' ? '?' : (item.uploaded_by?.[0] || item.name?.[0] || '?')}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[7px] font-bold text-white uppercase ring-1 ring-white/10">
+                  {item.uploaded_by?.[0] || item.name?.[0] || '?'}
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-white">
-                    {item.is_anonymous && item.type === 'gift' ? 'Anonymous Guest' : (item.uploaded_by || item.name || 'Anonymous Guest')}
+                <div className="min-w-0">
+                  <p className="text-[9px] font-medium text-white truncate">
+                    {item.uploaded_by || item.name || 'Guest'}
+                    {item.isGroup && <span className="text-white/40 ml-1">captured a moment</span>}
                   </p>
-                  <p className="text-[10px] text-white/40">
+                  <p className="text-[7px] text-white/40">
                     {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
                   </p>
                 </div>
               </div>
 
               {item.type === 'gift' ? (
-                <div className="flex items-center gap-3 bg-white/5 rounded-xl p-4 border border-white/5">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Banknote className="w-5 h-5 text-primary" />
+                <div className="flex flex-col gap-1.5 bg-primary/5 rounded-lg p-2.5 border border-primary/10">
+                  <div className="flex items-center gap-2">
+                    <Banknote className="w-3.5 h-3.5 text-primary" />
+                    <p className="text-xs text-white/90 font-bold">₦{item.gift_amount?.toLocaleString()}</p>
                   </div>
-                  <p className="text-sm text-white/90 font-medium">
-                    Sent a cash gift
-                  </p>
+                  {item.gift_message && <p className="text-[9px] text-white/70 italic leading-tight">"{item.gift_message}"</p>}
                 </div>
               ) : item.type === 'message' ? (
-                <p className="text-sm text-white/80 leading-relaxed italic">
-                  "{item.message}"
-                </p>
+                <p className="text-[10px] text-white/80 italic border-l-2 border-primary/40 pl-2.5 py-0.5">"{item.message}"</p>
+              ) : item.type === 'group' ? (
+                /* Collage View */
+                <div className={`grid gap-1 rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5 ${
+                  item.items.length === 2 ? 'grid-cols-2' : 
+                  item.items.length === 3 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2'
+                }`}>
+                  {item.items.slice(0, 4).map((subItem: any, i: number) => (
+                    <div 
+                      key={subItem.id} 
+                      className={`relative overflow-hidden ${
+                        item.items.length === 3 && i === 0 ? 'col-span-2 row-span-1 h-24' : 
+                        item.items.length === 3 ? 'h-20' : 
+                        'h-24'
+                      }`}
+                    >
+                      {subItem.type === 'photo' ? (
+                        <img src={subItem.file_url} className="w-full h-full object-cover" alt="Moment" />
+                      ) : (
+                        <video src={subItem.file_url} className="w-full h-full object-cover" muted playsInline />
+                      )}
+                      {i === 3 && item.items.length > 4 && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center text-white text-xs font-bold">
+                          +{item.items.length - 4}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="relative rounded-xl overflow-hidden bg-black/40">
+                /* Single Media View */
+                <div className="relative rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5">
                   {item.type === 'photo' ? (
-                    <img 
-                      src={item.file_url} 
-                      className="w-full h-auto block" 
-                      alt="Live upload" 
-                    />
+                    <img src={item.file_url} className="w-full h-auto block hover:scale-105 transition-transform duration-700" alt="Live upload" />
                   ) : (
-                    <video 
-                      src={item.file_url} 
-                      className="w-full h-auto block" 
-                      controls={false}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                    />
+                    <video src={item.file_url} className="w-full h-auto block" controls={false} autoPlay muted loop playsInline />
                   )}
                 </div>
               )}
@@ -222,10 +284,12 @@ const GuestUpload = () => {
   const { toast } = useToast();
   const [memoryEvent, setMemoryEvent] = useState<MemoryEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [guestName, setGuestName] = useState("");
+  const [guestName, setGuestName] = useState(() => localStorage.getItem("memories_guest_name") || "");
+  const [isEditingName, setIsEditingName] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [showLiveFeed, setShowLiveFeed] = useState(true);
   const [hearts, setHearts] = useState<{ id: number, x: number }[]>([]);
@@ -234,14 +298,25 @@ const GuestUpload = () => {
   const [isFeedLoading, setIsFeedLoading] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasNewActivity, setHasNewActivity] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 12;
+
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [giftAmount, setGiftAmount] = useState<number | null>(null);
   const [customGiftAmount, setCustomGiftAmount] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submissionType, setSubmissionType] = useState<'media' | 'message' | 'gift' | null>(null);
+  const [showEventDetails, setShowEventDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (guestName) {
+      localStorage.setItem("memories_guest_name", guestName);
+    }
+  }, [guestName]);
 
   const totalProgress = selectedFiles.length > 0 
     ? Math.round(Object.values(uploadProgress).reduce((acc, curr) => acc + curr, 0) / selectedFiles.length)
@@ -301,7 +376,20 @@ const GuestUpload = () => {
       
       const { data, error } = await supabase
         .from('events')
-        .select('*')
+        .select(`
+          *,
+          groom_first_name,
+          groom_last_name,
+          bride_first_name,
+          bride_last_name,
+          religious_rite_venue,
+          religious_rite_start_time,
+          religious_rite_end_time,
+          reception_venue,
+          reception_start_time,
+          reception_end_time,
+          is_location_public
+        `)
         .eq('slug', shareCode)
         .single();
 
@@ -326,6 +414,17 @@ const GuestUpload = () => {
         isGiftingEnabled: !!data.is_gifting_enabled,
         isLocked: data.is_locked,
         isLiveFeedEnabled: !!data.is_live_feed_enabled,
+        groomFirstName: data.groom_first_name,
+        groomLastName: data.groom_last_name,
+        brideFirstName: data.bride_first_name,
+        brideLastName: data.bride_last_name,
+        religiousRiteVenue: data.religious_rite_venue,
+        religiousRiteStartTime: data.religious_rite_start_time,
+        religiousRiteEndTime: data.religious_rite_end_time,
+        receptionVenue: data.reception_venue,
+        receptionStartTime: data.reception_start_time,
+        receptionEndTime: data.reception_end_time,
+        isLocationPublic: data.is_location_public,
         uploads: [] 
       };
       
@@ -355,6 +454,7 @@ const GuestUpload = () => {
 
       setFeedItems(combined);
       setIsFeedLoading(false);
+      setHasMore(combined.length >= PAGE_SIZE);
 
       // Realtime subscriptions
       const mediaChannel = supabase
@@ -368,7 +468,7 @@ const GuestUpload = () => {
           setFeedItems(prev => {
             if (prev.some(item => item.id === payload.new.id)) return prev;
             if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: payload.new.file_type }, ...prev].slice(0, 15);
+            return [{ ...payload.new, type: payload.new.file_type }, ...prev];
           });
         })
         .subscribe();
@@ -384,7 +484,7 @@ const GuestUpload = () => {
           setFeedItems(prev => {
             if (prev.some(item => item.id === payload.new.id)) return prev;
             if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: 'message' }, ...prev].slice(0, 15);
+            return [{ ...payload.new, type: 'message' }, ...prev];
           });
         })
         .subscribe();
@@ -400,7 +500,7 @@ const GuestUpload = () => {
           setFeedItems(prev => {
             if (prev.some(item => item.id === payload.new.id)) return prev;
             if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: 'gift' }, ...prev].slice(0, 15);
+            return [{ ...payload.new, type: 'gift' }, ...prev];
           });
         })
         .subscribe();
@@ -414,6 +514,53 @@ const GuestUpload = () => {
 
     fetchEventAndFeed();
   }, [shareCode]);
+
+  const handleLoadMore = async () => {
+    if (!memoryEvent || isLoadingMore || !hasMore) return;
+    
+    setIsLoadingMore(true);
+    const oldestItem = feedItems[feedItems.length - 1];
+    if (!oldestItem) {
+      setHasMore(false);
+      setIsLoadingMore(false);
+      return;
+    }
+
+    try {
+      const { data: media } = await supabase
+        .from('media')
+        .select('*')
+        .eq('event_id', memoryEvent.id)
+        .lt('created_at', oldestItem.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+      
+      const { data: messages } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('event_id', memoryEvent.id)
+        .lt('created_at', oldestItem.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+
+      const combined = [
+        ...(media || []).map(m => ({ ...m, type: m.file_type })),
+        ...(messages || []).map(m => ({ ...m, type: 'message' }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, PAGE_SIZE);
+
+      if (combined.length === 0) {
+        setHasMore(false);
+      } else {
+        setFeedItems(prev => [...prev, ...combined]);
+        setHasMore(combined.length === PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Error loading more items:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const isEventStarted = !memoryEvent?.eventDate || new Date(memoryEvent.eventDate) <= new Date();
 
@@ -438,6 +585,11 @@ const GuestUpload = () => {
     if (selectedFiles.length === 0 || !validateName() || !memoryEvent) return;
     
     setIsSubmitting(true);
+    setIsCompressing(true);
+    
+    // Simulate/Prepare compression time
+    await new Promise(resolve => setTimeout(resolve, 800));
+    setIsCompressing(false);
     
     try {
       const { data: latestEvent, error: fetchError } = await supabase
@@ -743,10 +895,163 @@ const GuestUpload = () => {
     );
   }
 
+  const formatEventDate = (dateStr?: string) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatEventTime = (timeStr?: string) => {
+    if (!timeStr) return "";
+    return new Date(timeStr).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <PageTransition>
-      <div className="min-h-screen relative flex flex-col dark bg-black font-inter">
+      <div className="min-h-screen relative flex flex-col dark bg-black font-inter overflow-x-hidden">
         <FloatingHearts hearts={hearts} onComplete={removeHeart} />
+        
+        {/* Hamburger Menu Button */}
+        <div className="fixed top-6 right-6 z-[60]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowEventDetails(true)}
+            className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 text-white hover:bg-white/20 transition-all shadow-2xl"
+          >
+            <Menu className="w-6 h-6" />
+          </Button>
+        </div>
+
+        {/* Event Details Drawer */}
+        <AnimatePresence>
+          {showEventDetails && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowEventDetails(false)}
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[70]"
+              />
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-white/5 backdrop-blur-3xl border-l border-white/10 z-[80] p-8 overflow-y-auto shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
+              >
+                <div className="flex items-center justify-between mb-12">
+                  <h3 className="text-2xl font-display font-bold text-white tracking-tight">Event Details</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowEventDetails(false)}
+                    className="w-10 h-10 rounded-full bg-white/5 text-white/50 hover:text-white hover:bg-white/10"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                <div className="space-y-10">
+                  {/* Event Title & Date */}
+                  <div className="space-y-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mb-6">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">The Celebration</h4>
+                    <div className="space-y-1">
+                      <p className="text-xl font-bold text-white leading-tight">{memoryEvent.name}</p>
+                      <p className="text-white/60">{formatEventDate(memoryEvent.eventDate)}</p>
+                    </div>
+                  </div>
+
+                  {/* Couple Info (if wedding) */}
+                  {memoryEvent.type === 'wedding' && (
+                    <div className="space-y-4">
+                      <div className="w-12 h-12 rounded-2xl bg-pink-500/20 flex items-center justify-center text-pink-400 mb-6">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">The Couple</h4>
+                      <div className="space-y-1">
+                        <p className="text-xl font-bold text-white">{memoryEvent.groomFirstName} & {memoryEvent.brideFirstName}</p>
+                        <p className="text-white/60">{memoryEvent.groomLastName}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Locations */}
+                  <div className="space-y-8">
+                    {/* Ceremony */}
+                    {memoryEvent.religiousRiteVenue && (
+                      <div className="space-y-4">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 mb-6">
+                          <MapPin className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Ceremony</h4>
+                        <div className="space-y-2">
+                          <p className="text-lg font-bold text-white leading-tight">{memoryEvent.religiousRiteVenue}</p>
+                          <div className="flex items-center gap-2 text-white/60 text-sm">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatEventTime(memoryEvent.religiousRiteStartTime)} - {formatEventTime(memoryEvent.religiousRiteEndTime)}</span>
+                          </div>
+                          {memoryEvent.isLocationPublic && (
+                             <a 
+                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.religiousRiteVenue)}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
+                             >
+                               Get Directions
+                             </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reception */}
+                    {memoryEvent.receptionVenue && (
+                      <div className="space-y-4 pt-4 border-t border-white/5">
+                         <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center text-orange-400 mb-6">
+                          <Clock className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Reception</h4>
+                        <div className="space-y-2">
+                          <p className="text-lg font-bold text-white leading-tight">{memoryEvent.receptionVenue}</p>
+                          <div className="flex items-center gap-2 text-white/60 text-sm">
+                            <Clock className="w-4 h-4" />
+                            <span>From {formatEventTime(memoryEvent.receptionStartTime)}</span>
+                          </div>
+                          {memoryEvent.isLocationPublic && (
+                             <a 
+                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.receptionVenue)}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
+                             >
+                               Get Directions
+                             </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-20 pt-10 border-t border-white/5 text-center">
+                  <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-medium">Powered by Memories</p>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
         {/* Faded Backdrop */}
         <div className="fixed inset-0 z-0">
           {memoryEvent.coverImage ? (
@@ -853,41 +1158,101 @@ const GuestUpload = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-6 space-y-6 shadow-2xl"
                 >
-                  {/* Name Input */}
-                  <div>
-                    <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold mb-3 block px-1">Guest Identification</label>
-                    <Input
-                      placeholder="Enter your name"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 h-12 rounded-xl"
-                    />
+                  {/* Name Input / Identity Chip */}
+                  <div className="space-y-3">
+                    <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold block px-1">Guest Identity</label>
+                    {guestName && !isEditingName ? (
+                      <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 group animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase ring-1 ring-white/10">
+                            {guestName[0]}
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-white/40 uppercase font-bold tracking-tight">Posting as</p>
+                            <p className="text-sm font-semibold text-white">{guestName}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setIsEditingName(true)}
+                          className="h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white hover:bg-white/10 transition-all shadow-none"
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    ) : (
+                      <Input
+                        placeholder="Enter your name"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        onBlur={() => guestName && setIsEditingName(false)}
+                        onKeyDown={(e) => e.key === 'Enter' && guestName && setIsEditingName(false)}
+                        autoFocus={isEditingName}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 h-12 rounded-xl transition-all"
+                      />
+                    )}
                   </div>
 
                   {/* Photo Previews */}
                   {selectedFiles.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 py-2">
-                      {selectedFiles.map((file, i) => (
-                        <div key={i} className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group">
-                          <img 
-                            src={URL.createObjectURL(file)} 
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                          />
-                          {!isSubmitting ? (
-                            <button
-                              onClick={() => removeFile(i)}
-                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                    <div className="py-2">
+                      {selectedFiles.length >= 5 ? (
+                        /* Stack View for 5+ files */
+                        <div className="flex -space-x-4 overflow-hidden py-2 px-1">
+                          {selectedFiles.slice(0, 4).map((file, i) => (
+                            <div 
+                              key={i} 
+                              className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-black/40 shadow-xl flex-shrink-0 transition-transform hover:-translate-y-1"
+                              style={{ zIndex: selectedFiles.length - i }}
                             >
-                              <X className="w-3 h-3 text-white" />
-                            </button>
-                          ) : (
-                            <div className="absolute inset-x-1 bottom-1">
-                              <Progress value={uploadProgress[file.name] || 0} className="h-1" />
+                              <img 
+                                src={URL.createObjectURL(file)} 
+                                alt="Preview"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))}
+                          {selectedFiles.length > 4 && (
+                            <div className="relative w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white text-xs font-bold shadow-xl z-0">
+                               +{selectedFiles.length - 4}
                             </div>
                           )}
+                          {!isSubmitting && (
+                            <button
+                              onClick={() => setSelectedFiles([])}
+                              className="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/20 transition-all self-center"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
-                      ))}
+                      ) : (
+                        /* Grid View for < 5 files */
+                        <div className="grid grid-cols-3 gap-2">
+                          {selectedFiles.map((file, i) => (
+                            <div key={i} className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group">
+                              <img 
+                                src={URL.createObjectURL(file)} 
+                                alt="Preview"
+                                className="w-full h-full object-cover"
+                              />
+                              {!isSubmitting ? (
+                                <button
+                                  onClick={() => removeFile(i)}
+                                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                  <X className="w-3 h-3 text-white" />
+                                </button>
+                              ) : (
+                                <div className="absolute inset-x-1 bottom-1">
+                                  <Progress value={uploadProgress[file.name] || 0} className="h-1" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -927,16 +1292,25 @@ const GuestUpload = () => {
                           <Button
                             onClick={handleSubmitMedia}
                             disabled={isSubmitting}
-                            className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg ${
-                              isSubmitting ? "w-full bg-primary/20 text-white/50" : "flex-1 bg-primary hover:bg-primary/90 text-white"
+                            className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg relative overflow-hidden ${
+                              isSubmitting ? "w-full bg-primary/20 text-white/50" : "flex-1 bg-primary hover:bg-primary/90 text-white ring-2 ring-primary/20"
                             }`}
                           >
                             {isSubmitting ? (
                               <>
-                                <div className="h-full bg-primary absolute left-0 top-0 transition-all duration-300 opacity-20" style={{ width: `${totalProgress}%` }} />
+                                <div className="absolute inset-0 bg-primary/20 animate-pulse" />
                                 <span className="relative z-10 flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Sending {totalProgress}%
+                                  {isCompressing ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Compressing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Sending {totalProgress}%
+                                    </>
+                                  )}
                                 </span>
                               </>
                             ) : (
@@ -1183,10 +1557,11 @@ const GuestUpload = () => {
                         window.scrollTo({ top: feedRef.current?.offsetTop ? feedRef.current.offsetTop - 100 : 0, behavior: 'smooth' });
                         setHasNewActivity(false);
                       }}
-                      className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 py-6 shadow-2xl border border-white/20 gap-2 font-bold group"
+                      className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 py-6 shadow-[0_20px_50px_rgba(var(--primary),0.3)] border border-white/20 gap-3 font-bold group"
                     >
-                      <ArrowUp className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
+                      <div className="w-2 h-2 rounded-full bg-white animate-ping" />
                       New Memories Added!
+                      <ArrowUp className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
                     </Button>
                   </motion.div>
                 )}
@@ -1199,11 +1574,48 @@ const GuestUpload = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
+              className="space-y-8"
             >
               <LiveFeed items={feedItems} isLoading={isFeedLoading} />
+              
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    variant="ghost"
+                    className="h-12 px-8 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all font-semibold gap-2 shadow-xl"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Exploring...
+                      </>
+                    ) : (
+                      <>
+                        View More Moments
+                        <ChevronDown className="w-4 h-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
               </AnimatePresence>
+              
+              {/* Scroll Reminder */}
+              {!hasNewActivity && feedItems.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 2 }}
+                  className="flex flex-col items-center gap-2 pt-12 pb-4 text-white/20"
+                >
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-bold">Swipe to explore feed</p>
+                  <ChevronDown className="w-4 h-4 animate-bounce" />
+                </motion.div>
+              )}
             </div>
           )}
         </div>

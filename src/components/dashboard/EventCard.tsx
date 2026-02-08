@@ -27,7 +27,8 @@ const EventCard = ({
   const photoCount = event.uploads.filter((u) => u.type === 'photo').length;
   const videoCount = event.uploads.filter((u) => u.type === 'video').length;
   const messageCount = event.uploads.filter((u) => u.type === 'message').length;
-  const totalItems = photoCount + videoCount + messageCount;
+  const giftCount = event.uploads.filter((u) => u.type === 'gift').length;
+  const totalMemories = photoCount + videoCount + messageCount;
 
   const formattedDate =
     event.eventDate && isValid(new Date(event.eventDate))
@@ -36,7 +37,8 @@ const EventCard = ({
 
   const description = [
     formattedDate,
-    `${totalItems} memory items`
+    `${totalMemories} memories`,
+    giftCount > 0 ? `${giftCount} gifts` : null
   ].filter(Boolean).join(" • ");
 
   return (
