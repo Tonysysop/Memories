@@ -456,9 +456,9 @@ const GuestUpload = () => {
       setIsFeedLoading(false);
       setHasMore(combined.length >= PAGE_SIZE);
 
-      // Realtime subscriptions
-      const mediaChannel = supabase
-        .channel(`media-${data.id}`)
+      // Realtime subscription
+      const feedChannel = supabase
+        .channel(`event-feed-${data.id}`)
         .on('postgres_changes', { 
           event: 'INSERT', 
           schema: 'public', 
@@ -471,10 +471,6 @@ const GuestUpload = () => {
             return [{ ...payload.new, type: payload.new.file_type }, ...prev];
           });
         })
-        .subscribe();
-
-      const messageChannel = supabase
-        .channel(`messages-${data.id}`)
         .on('postgres_changes', { 
           event: 'INSERT', 
           schema: 'public', 
@@ -487,28 +483,14 @@ const GuestUpload = () => {
             return [{ ...payload.new, type: 'message' }, ...prev];
           });
         })
-        .subscribe();
-        
-      const giftChannel = supabase
-        .channel(`gifts-${data.id}`)
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'media',
-          filter: `event_id=eq.${data.id} AND file_type=eq.gift` 
-        }, (payload) => {
-          setFeedItems(prev => {
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: 'gift' }, ...prev];
-          });
-        })
-        .subscribe();
+        .subscribe((status) => {
+          if (status !== 'SUBSCRIBED') {
+            console.warn('Real-time feed subscription status:', status);
+          }
+        });
 
       return () => {
-        supabase.removeChannel(mediaChannel);
-        supabase.removeChannel(messageChannel);
-        supabase.removeChannel(giftChannel);
+        supabase.removeChannel(feedChannel);
       };
     };
 
