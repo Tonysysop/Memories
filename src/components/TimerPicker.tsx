@@ -14,7 +14,7 @@ interface TimerPickerProps {
   id?: string;
 }
 
-const TimerPicker = ({ value, onChange, id = 'time-picker' }: TimerPickerProps) => {
+const TimerPicker = ({ value, onChange, id }: TimerPickerProps) => {
   // Parse the time value (HH:MM format or HH:MM:SS)
   const parseTime = (timeStr?: string) => {
     if (!timeStr) return { hour: '12', minute: '00', period: 'AM' };
@@ -67,7 +67,7 @@ const TimerPicker = ({ value, onChange, id = 'time-picker' }: TimerPickerProps) 
   const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
   return (
-    <div className='relative w-full flex items-center gap-2'>
+    <div id={id} className='relative w-full flex items-center gap-2'>
       <div className='text-muted-foreground flex items-center justify-center'>
         <Clock8Icon className='size-4' />
       </div>
