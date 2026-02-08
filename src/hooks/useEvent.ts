@@ -16,7 +16,11 @@ export const useEvents = () => {
 
       const { data, error } = await supabase
         .from('events')
-        .select('*')
+        .select(`
+          *,
+          media(id, file_type, created_at, is_approved),
+          messages(id, created_at)
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -38,7 +42,31 @@ export const useEvents = () => {
         isLocked: e.is_locked,
         isLiveFeedEnabled: e.is_live_feed_enabled,
         isGiftTotalHidden: e.is_gift_total_hidden,
-        uploads: []
+        groomFirstName: e.groom_first_name,
+        groomLastName: e.groom_last_name,
+        brideFirstName: e.bride_first_name,
+        brideLastName: e.bride_last_name,
+        religiousRiteVenue: e.religious_rite_venue,
+        religiousRiteStartTime: e.religious_rite_start_time,
+        religiousRiteEndTime: e.religious_rite_end_time,
+        receptionVenue: e.reception_venue,
+        receptionStartTime: e.reception_start_time,
+        receptionEndTime: e.reception_end_time,
+        isLocationPublic: e.is_location_public,
+        uploads: [
+          ...(e.media || []).map((m: any) => ({
+            id: m.id,
+            type: m.file_type as 'photo' | 'video' | 'gift',
+            createdAt: m.created_at,
+            isApproved: m.is_approved
+          })),
+          ...(e.messages || []).map((m: any) => ({
+            id: m.id,
+            type: 'message' as const,
+            createdAt: m.created_at,
+            isApproved: true
+          }))
+        ]
       })) as MemoryEvent[];
     },
     enabled: !!user,
@@ -65,7 +93,18 @@ export const useEvents = () => {
           is_messages_enabled: true,
           is_gifting_enabled: false,
           is_locked: false,
-          is_live_feed_enabled: false
+          is_live_feed_enabled: false,
+          groom_first_name: eventData.groomFirstName,
+          groom_last_name: eventData.groomLastName,
+          bride_first_name: eventData.brideFirstName,
+          bride_last_name: eventData.brideLastName,
+          religious_rite_venue: eventData.religiousRiteVenue,
+          religious_rite_start_time: eventData.religiousRiteStartTime,
+          religious_rite_end_time: eventData.religiousRiteEndTime,
+          reception_venue: eventData.receptionVenue,
+          reception_start_time: eventData.receptionStartTime,
+          reception_end_time: eventData.receptionEndTime,
+          is_location_public: eventData.isLocationPublic ?? true
         })
         .select()
         .single();
@@ -86,6 +125,17 @@ export const useEvents = () => {
         isGiftingEnabled: data.is_gifting_enabled,
         isLocked: data.is_locked,
         isLiveFeedEnabled: data.is_live_feed_enabled,
+        groomFirstName: data.groom_first_name,
+        groomLastName: data.groom_last_name,
+        brideFirstName: data.bride_first_name,
+        brideLastName: data.bride_last_name,
+        religiousRiteVenue: data.religious_rite_venue,
+        religiousRiteStartTime: data.religious_rite_start_time,
+        religiousRiteEndTime: data.religious_rite_end_time,
+        receptionVenue: data.reception_venue,
+        receptionStartTime: data.reception_start_time,
+        receptionEndTime: data.reception_end_time,
+        isLocationPublic: data.is_location_public,
         uploads: []
       } as MemoryEvent;
     },
@@ -113,6 +163,17 @@ export const useEvents = () => {
       if (typeof updates.isGiftingEnabled !== 'undefined') dbUpdates.is_gifting_enabled = updates.isGiftingEnabled;
       if (typeof updates.isLiveFeedEnabled !== 'undefined') dbUpdates.is_live_feed_enabled = updates.isLiveFeedEnabled;
       if (typeof updates.isGiftTotalHidden !== 'undefined') dbUpdates.is_gift_total_hidden = updates.isGiftTotalHidden;
+      if (updates.groomFirstName) dbUpdates.groom_first_name = updates.groomFirstName;
+      if (updates.groomLastName) dbUpdates.groom_last_name = updates.groomLastName;
+      if (updates.brideFirstName) dbUpdates.bride_first_name = updates.brideFirstName;
+      if (updates.brideLastName) dbUpdates.bride_last_name = updates.brideLastName;
+      if (updates.religiousRiteVenue) dbUpdates.religious_rite_venue = updates.religiousRiteVenue;
+      if (updates.religiousRiteStartTime) dbUpdates.religious_rite_start_time = updates.religiousRiteStartTime;
+      if (updates.religiousRiteEndTime) dbUpdates.religious_rite_end_time = updates.religiousRiteEndTime;
+      if (updates.receptionVenue) dbUpdates.reception_venue = updates.receptionVenue;
+      if (updates.receptionStartTime) dbUpdates.reception_start_time = updates.receptionStartTime;
+      if (updates.receptionEndTime) dbUpdates.reception_end_time = updates.receptionEndTime;
+      if (typeof updates.isLocationPublic !== 'undefined') dbUpdates.is_location_public = updates.isLocationPublic;
 
       const { error } = await supabase
         .from('events')

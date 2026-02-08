@@ -37,6 +37,19 @@ export interface MemoryEvent {
   isLocked: boolean;
   isLiveFeedEnabled: boolean;
   uploads: EventUpload[];
+  
+  // Wedding Specific Fields
+  groomFirstName?: string;
+  groomLastName?: string;
+  brideFirstName?: string;
+  brideLastName?: string;
+  religiousRiteVenue?: string;
+  religiousRiteStartTime?: string;
+  religiousRiteEndTime?: string;
+  receptionVenue?: string;
+  receptionStartTime?: string;
+  receptionEndTime?: string;
+  isLocationPublic?: boolean;
 }
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
