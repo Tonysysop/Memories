@@ -5,7 +5,7 @@ const PricingSection = () => {
   const plans = [
     {
       name: "Free",
-      price: "$0",
+      price: "₦0",
       period: "forever",
       description: "Perfect for small gatherings and personal events.",
       storage: "1GB",
@@ -21,8 +21,8 @@ const PricingSection = () => {
     },
     {
       name: "Premium",
-      price: "$9",
-      period: "/month",
+      price: "₦20,000",
+      period: "/event",
       description: "Ideal for weddings, parties, and larger celebrations.",
       storage: "5GB",
       features: [
@@ -31,6 +31,7 @@ const PricingSection = () => {
         "QR code & shareable link",
         "Custom event branding",
         "Unlimited download access",
+        "Cash Gifting",
         "Priority support",
         "HD video uploads",
         "Remove watermarks",
@@ -44,7 +45,7 @@ const PricingSection = () => {
     <section id="pricing" className="py-24 md:py-32 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-      
+
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section header */}
         <div className="text-center max-w-2xl mx-auto mb-16 md:mb-20">
@@ -64,11 +65,10 @@ const PricingSection = () => {
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`relative bg-card rounded-2xl border p-8 ${
-                plan.popular
+              className={`relative bg-card rounded-2xl border p-8 ${plan.popular
                   ? "border-primary shadow-lg shadow-primary/10"
                   : "border-border"
-              }`}
+                }`}
             >
               {/* Popular badge */}
               {plan.popular && (
@@ -118,11 +118,10 @@ const PricingSection = () => {
 
               {/* CTA button */}
               <Button
-                className={`w-full ${
-                  plan.popular
+                className={`w-full ${plan.popular
                     ? ""
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
+                  }`}
                 size="lg"
               >
                 {plan.cta}
