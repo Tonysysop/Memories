@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Heart, 
-  Camera, 
-  MessageSquare, 
+import {
+  Heart,
+  Camera,
+  MessageSquare,
   Upload,
   X,
   Lock,
@@ -36,6 +36,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageTransition from "@/components/PageTransition";
 import { Progress } from "@/components/ui/progress";
 
+declare global {
+  interface Window {
+    FlutterwaveCheckout: (config: any) => void;
+  }
+}
+
 const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) => {
   if (isLoading) return null;
   if (items.length === 0) return null;
@@ -43,12 +49,12 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
   // Grouping logic: Clusters consecutive media items from the same user
   const groupedItems = items.reduce((acc: any[], current) => {
     const prev = acc[acc.length - 1];
-    
+
     // Criteria for grouping:
     // 1. Same user
     // 2. Both are media (photo/video)
     // 3. Within 5 minutes of each other
-    const isConsecutiveMedia = prev && 
+    const isConsecutiveMedia = prev &&
       (prev.uploaded_by === current.uploaded_by || prev.name === current.name) &&
       (prev.type === 'photo' || prev.type === 'video') &&
       (current.type === 'photo' || current.type === 'video') &&
@@ -77,87 +83,85 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
 
   return (
     <div className="columns-2 sm:columns-3 gap-4 space-y-4">
-        <AnimatePresence initial={false}>
-          {groupedItems.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-              whileInView={{ opacity: 1, scale: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ 
-                duration: 0.5, 
-                delay: Math.min(index * 0.1, 0.3),
-                ease: [0.21, 1.11, 0.81, 0.99]
-              }}
-              className="break-inside-avoid mb-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden p-3 shadow-xl hover:bg-white/10 transition-colors"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[7px] font-bold text-white uppercase ring-1 ring-white/10">
-                  {item.uploaded_by?.[0] || item.name?.[0] || '?'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-medium text-white truncate">
-                    {item.uploaded_by || item.name || 'Guest'}
-                    {item.isGroup && <span className="text-white/40 ml-1">captured a moment</span>}
-                  </p>
-                  <p className="text-[7px] text-white/40">
-                    {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                  </p>
-                </div>
+      <AnimatePresence initial={false}>
+        {groupedItems.map((item, index) => (
+          <motion.div
+            key={item.id}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            whileInView={{ opacity: 1, scale: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{
+              duration: 0.5,
+              delay: Math.min(index * 0.1, 0.3),
+              ease: [0.21, 1.11, 0.81, 0.99]
+            }}
+            className="break-inside-avoid mb-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden p-3 shadow-xl hover:bg-white/10 transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[7px] font-bold text-white uppercase ring-1 ring-white/10">
+                {item.guestName?.[0] || item.uploaded_by?.[0] || item.name?.[0] || '?'}
               </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-medium text-white truncate">
+                  {item.guestName || item.uploaded_by || item.name || 'Guest'}
+                  {item.isGroup && <span className="text-white/40 ml-1">captured a moment</span>}
+                </p>
+                <p className="text-[7px] text-white/40">
+                  {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                </p>
+              </div>
+            </div>
 
-              {item.type === 'gift' ? (
-                <div className="flex flex-col gap-1.5 bg-primary/5 rounded-lg p-2.5 border border-primary/10">
-                  <div className="flex items-center gap-2">
-                    <Banknote className="w-3.5 h-3.5 text-primary" />
-                    <p className="text-xs text-white/90 font-bold">₦{item.gift_amount?.toLocaleString()}</p>
-                  </div>
-                  {item.gift_message && <p className="text-[9px] text-white/70 italic leading-tight">"{item.gift_message}"</p>}
+            {item.type === 'gift' ? (
+              <div className="flex flex-col gap-1.5 bg-primary/5 rounded-lg p-2.5 border border-primary/10">
+                <div className="flex items-center gap-2">
+                  <Banknote className="w-3.5 h-3.5 text-primary" />
+                  <p className="text-xs text-white/90 font-bold">₦{item.amount?.toLocaleString()}</p>
                 </div>
-              ) : item.type === 'message' ? (
-                <p className="text-[10px] text-white/80 italic border-l-2 border-primary/40 pl-2.5 py-0.5">"{item.message}"</p>
-              ) : item.type === 'group' ? (
-                /* Collage View */
-                <div className={`grid gap-1 rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5 ${
-                  item.items.length === 2 ? 'grid-cols-2' : 
-                  item.items.length === 3 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2'
+                {item.message && <p className="text-[9px] text-white/70 italic leading-tight">"{item.message}"</p>}
+              </div>
+            ) : item.type === 'message' ? (
+              <p className="text-[10px] text-white/80 italic border-l-2 border-primary/40 pl-2.5 py-0.5">"{item.message}"</p>
+            ) : item.type === 'group' ? (
+              /* Collage View */
+              <div className={`grid gap-1 rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5 ${item.items.length === 2 ? 'grid-cols-2' :
+                item.items.length === 3 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2'
                 }`}>
-                  {item.items.slice(0, 4).map((subItem: any, i: number) => (
-                    <div 
-                      key={subItem.id} 
-                      className={`relative overflow-hidden ${
-                        item.items.length === 3 && i === 0 ? 'col-span-2 row-span-1 h-24' : 
-                        item.items.length === 3 ? 'h-20' : 
+                {item.items.slice(0, 4).map((subItem: any, i: number) => (
+                  <div
+                    key={subItem.id}
+                    className={`relative overflow-hidden ${item.items.length === 3 && i === 0 ? 'col-span-2 row-span-1 h-24' :
+                      item.items.length === 3 ? 'h-20' :
                         'h-24'
                       }`}
-                    >
-                      {subItem.type === 'photo' ? (
-                        <img src={subItem.file_url} className="w-full h-full object-cover" alt="Moment" />
-                      ) : (
-                        <video src={subItem.file_url} className="w-full h-full object-cover" muted playsInline />
-                      )}
-                      {i === 3 && item.items.length > 4 && (
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center text-white text-xs font-bold">
-                          +{item.items.length - 4}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* Single Media View */
-                <div className="relative rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5">
-                  {item.type === 'photo' ? (
-                    <img src={item.file_url} className="w-full h-auto block hover:scale-105 transition-transform duration-700" alt="Live upload" />
-                  ) : (
-                    <video src={item.file_url} className="w-full h-auto block" controls={false} autoPlay muted loop playsInline />
-                  )}
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+                  >
+                    {subItem.type === 'photo' ? (
+                      <img src={subItem.file_url} className="w-full h-full object-cover" alt="Moment" />
+                    ) : (
+                      <video src={subItem.file_url} className="w-full h-full object-cover" muted playsInline />
+                    )}
+                    {i === 3 && item.items.length > 4 && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center text-white text-xs font-bold">
+                        +{item.items.length - 4}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Single Media View */
+              <div className="relative rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5">
+                {item.type === 'photo' ? (
+                  <img src={item.file_url} className="w-full h-auto block hover:scale-105 transition-transform duration-700" alt="Live upload" />
+                ) : (
+                  <video src={item.file_url} className="w-full h-auto block" controls={false} autoPlay muted loop playsInline />
+                )}
+              </div>
+            )}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
   );
 };
 
@@ -169,8 +173,8 @@ const FloatingHearts = ({ hearts, onComplete }: { hearts: { id: number, x: numbe
           <motion.div
             key={heart.id}
             initial={{ y: "100vh", x: heart.x, opacity: 1, scale: 0.5, rotate: 0 }}
-            animate={{ 
-              y: "-10vh", 
+            animate={{
+              y: "-10vh",
               x: heart.x + (Math.random() * 100 - 50),
               opacity: 0,
               scale: 1.5,
@@ -227,7 +231,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
         { label: "Mins", value: timeLeft.minutes },
         { label: "Secs", value: timeLeft.seconds },
       ].map((item) => (
-        <div 
+        <div
           key={item.label}
           className="flex flex-col items-center bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 min-w-[65px] sm:min-w-[80px] shadow-2xl"
         >
@@ -251,7 +255,7 @@ const RotatingMessages = () => {
     "Uploads open automatically when time's up.",
     "Share the love through photos and messages."
   ];
-  
+
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -318,7 +322,7 @@ const GuestUpload = () => {
     }
   }, [guestName]);
 
-  const totalProgress = selectedFiles.length > 0 
+  const totalProgress = selectedFiles.length > 0
     ? Math.round(Object.values(uploadProgress).reduce((acc, curr) => acc + curr, 0) / selectedFiles.length)
     : 0;
 
@@ -373,7 +377,8 @@ const GuestUpload = () => {
   useEffect(() => {
     const fetchEventAndFeed = async () => {
       if (!shareCode) return;
-      
+
+      // Revert to standard select to fix broken links
       const { data, error } = await supabase
         .from('events')
         .select(`
@@ -394,12 +399,13 @@ const GuestUpload = () => {
         .single();
 
       if (error || !data) {
+        console.error("Error fetching event:", error);
         setMemoryEvent(null);
         setIsLoading(false);
         return;
-      } 
-      
-      const mappedEvent = {
+      }
+
+      const mappedEvent: MemoryEvent = {
         id: data.id,
         hostId: data.user_id,
         name: data.title,
@@ -414,6 +420,8 @@ const GuestUpload = () => {
         isGiftingEnabled: !!data.is_gifting_enabled,
         isLocked: data.is_locked,
         isLiveFeedEnabled: !!data.is_live_feed_enabled,
+        // Fallback for hostEmail until RPC is fixed
+        hostEmail: undefined,
         groomFirstName: data.groom_first_name,
         groomLastName: data.groom_last_name,
         brideFirstName: data.bride_first_name,
@@ -424,12 +432,30 @@ const GuestUpload = () => {
         receptionVenue: data.reception_venue,
         receptionStartTime: data.reception_start_time,
         receptionEndTime: data.reception_end_time,
-        isLocationPublic: data.is_location_public,
-        uploads: [] 
+        isLocationPublic: !!data.is_location_public,
+        uploads: []
       };
-      
+
       setMemoryEvent(mappedEvent);
       setIsLoading(false);
+
+      // Check for Flutterwave redirect callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const transactionId = urlParams.get('transaction_id') || urlParams.get('session_id') || urlParams.get('id');
+      const status = urlParams.get('status');
+
+      if (transactionId && (status === 'successful' || status === 'completed')) {
+        // Retrieve expected amount from localStorage
+        const storedAmount = localStorage.getItem(`pending_gift_amount_${shareCode}`);
+        if (storedAmount) {
+          handleVerifyGift(transactionId, parseFloat(storedAmount));
+          localStorage.removeItem(`pending_gift_amount_${shareCode}`);
+        } else {
+          // Fallback if localStorage is cleared
+          toast({ title: "Confirming Payment", description: "Verifying your gift...", variant: "default" });
+          handleVerifyGift(transactionId, 0);
+        }
+      }
 
       // Fetch Feed
       const { data: media } = await supabase
@@ -438,7 +464,7 @@ const GuestUpload = () => {
         .eq('event_id', data.id)
         .order('created_at', { ascending: false })
         .limit(10);
-      
+
       const { data: messages } = await supabase
         .from('messages')
         .select('*')
@@ -446,11 +472,20 @@ const GuestUpload = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
+      const { data: gifts } = await supabase
+        .from('gifts')
+        .select('*')
+        .eq('event_id', data.id)
+        .eq('status', 'successful')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
       const combined = [
         ...(media || []).map(m => ({ ...m, type: m.file_type })),
-        ...(messages || []).map(m => ({ ...m, type: 'message' }))
+        ...(messages || []).map(m => ({ ...m, type: 'message' })),
+        ...(gifts || []).map(g => ({ ...g, type: 'gift', guestName: g.guest_name }))
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 15);
+        .slice(0, 15);
 
       setFeedItems(combined);
       setIsFeedLoading(false);
@@ -459,11 +494,11 @@ const GuestUpload = () => {
       // Realtime subscription
       const feedChannel = supabase
         .channel(`event-feed-${data.id}`)
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
           table: 'media',
-          filter: `event_id=eq.${data.id}` 
+          filter: `event_id=eq.${data.id}`
         }, (payload) => {
           setFeedItems(prev => {
             if (prev.some(item => item.id === payload.new.id)) return prev;
@@ -471,16 +506,29 @@ const GuestUpload = () => {
             return [{ ...payload.new, type: payload.new.file_type }, ...prev];
           });
         })
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
           table: 'messages',
-          filter: `event_id=eq.${data.id}` 
+          filter: `event_id=eq.${data.id}`
         }, (payload) => {
           setFeedItems(prev => {
             if (prev.some(item => item.id === payload.new.id)) return prev;
             if (window.scrollY > 400) setHasNewActivity(true);
             return [{ ...payload.new, type: 'message' }, ...prev];
+          });
+        })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'gifts',
+          filter: `event_id=eq.${data.id}`
+        }, (payload) => {
+          if (payload.new.status !== 'successful') return;
+          setFeedItems(prev => {
+            if (prev.some(item => item.id === payload.new.id)) return prev;
+            if (window.scrollY > 400) setHasNewActivity(true);
+            return [{ ...payload.new, type: 'gift', guestName: payload.new.guest_name }, ...prev];
           });
         })
         .subscribe((status) => {
@@ -499,7 +547,7 @@ const GuestUpload = () => {
 
   const handleLoadMore = async () => {
     if (!memoryEvent || isLoadingMore || !hasMore) return;
-    
+
     setIsLoadingMore(true);
     const oldestItem = feedItems[feedItems.length - 1];
     if (!oldestItem) {
@@ -516,7 +564,7 @@ const GuestUpload = () => {
         .lt('created_at', oldestItem.created_at)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
-      
+
       const { data: messages } = await supabase
         .from('messages')
         .select('*')
@@ -529,7 +577,7 @@ const GuestUpload = () => {
         ...(media || []).map(m => ({ ...m, type: m.file_type })),
         ...(messages || []).map(m => ({ ...m, type: 'message' }))
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, PAGE_SIZE);
+        .slice(0, PAGE_SIZE);
 
       if (combined.length === 0) {
         setHasMore(false);
@@ -565,14 +613,14 @@ const GuestUpload = () => {
 
   const handleSubmitMedia = async () => {
     if (selectedFiles.length === 0 || !validateName() || !memoryEvent) return;
-    
+
     setIsSubmitting(true);
     setIsCompressing(true);
-    
+
     // Simulate/Prepare compression time
     await new Promise(resolve => setTimeout(resolve, 800));
     setIsCompressing(false);
-    
+
     try {
       const { data: latestEvent, error: fetchError } = await supabase
         .from('events')
@@ -581,7 +629,7 @@ const GuestUpload = () => {
         .single();
 
       if (fetchError || !latestEvent) throw new Error("Could not verify event status");
-      
+
       const eventStarted = !latestEvent.event_date || new Date(latestEvent.event_date) <= new Date();
       if (!eventStarted) {
         toast({ title: "Event Not Started", description: "This event hasn't started yet. Please come back later!", variant: "destructive" });
@@ -659,7 +707,7 @@ const GuestUpload = () => {
 
   const handleSubmitMessage = async () => {
     if (!message.trim() || !validateName() || !memoryEvent) return;
-    
+
     setIsSubmitting(true);
     try {
       const { data: latestEvent, error: fetchError } = await supabase
@@ -723,13 +771,80 @@ const GuestUpload = () => {
     }
   };
 
+  const handleVerifyGift = async (transactionId: string, expectedAmount: number) => {
+    setIsSubmitting(true);
+    try {
+      const { data: result, error: invokeError } = await supabase.functions.invoke('flutterwave-verify', {
+        body: {
+          transaction_id: transactionId,
+          expected_amount: expectedAmount
+        }
+      });
+
+      if (invokeError) throw invokeError;
+
+      if (result.success) {
+        toast({ title: "🎁 Gift Recorded!", description: "Your gift has been confirmed. Thank you!" });
+        setSubmissionType('gift');
+        setIsSubmitted(true);
+        triggerSuccessEffects();
+
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        throw new Error(result.error || "Verification failed");
+      }
+    } catch (error: any) {
+      console.error('Error verifying gift:', error);
+
+      // Try to log the detailed response body
+      if (error.context) {
+        try {
+          const errorBody = await error.context.json();
+          console.error('Verification Error Body:', errorBody);
+        } catch (e) {
+          console.error('Could not parse verification error body');
+        }
+      }
+
+      toast({
+        title: "Verification Notice",
+        description: "Your payment was successful, but we had trouble recording it. The host will still see it on their dashboard.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const triggerSuccessEffects = () => {
+    // Gold Confetti
+    const duration = 3000;
+    const end = Date.now() + duration;
+    const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"];
+
+    const frame = () => {
+      confetti({ particleCount: 7, angle: 60, spread: 70, origin: { x: 0, y: 0.8 }, colors, zIndex: 9999 });
+      confetti({ particleCount: 7, angle: 120, spread: 70, origin: { x: 1, y: 0.8 }, colors, zIndex: 9999 });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+    triggerHearts();
+  };
+
   const handleSubmitGift = async () => {
+    if (!memoryEvent) return;
     const finalAmount = giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
+
     if (!finalAmount || finalAmount <= 0) {
       toast({ title: "Invalid Amount", description: "Please select or enter a valid gift amount.", variant: "destructive" });
       return;
     }
-    if (!validateName() || !memoryEvent) return;
+
+    if (!guestName.trim()) {
+      toast({ title: "Name Required", description: "Please enter your name.", variant: "destructive" });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -745,85 +860,61 @@ const GuestUpload = () => {
       if (latestEvent.is_locked) {
         toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
         setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        setIsSubmitting(false);
         return;
       }
 
       if (!latestEvent.is_gifting_enabled) {
-        toast({ title: "Gifting Disabled", description: "The host has disabled cash gifting.", variant: "destructive" });
+        toast({ title: "Gifting Disabled", description: "This event is no longer accepting gifts.", variant: "destructive" });
         setMemoryEvent(prev => prev ? { ...prev, isGiftingEnabled: false } : null);
+        setIsSubmitting(false);
         return;
       }
 
-      // Mock Gift Submission
-      const { data: giftEntry, error } = await supabase
-        .from('media')
-        .insert({
-          event_id: memoryEvent.id,
-          file_type: 'gift',
-          file_url: 'gift-placeholder', // Not used for gifts
-          uploaded_by: guestName.trim(),
-          gift_amount: finalAmount,
-          gift_message: giftMessage.trim(),
-          is_anonymous: isAnonymous
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-
-      // Immediate UI Update
-      if (giftEntry) {
-         setFeedItems(prev => {
-            if (prev.some(item => item.id === giftEntry.id)) return prev;
-            return [{ ...giftEntry, type: 'gift', giftAmount: finalAmount, giftMessage: giftMessage.trim(), is_anonymous: isAnonymous }, ...prev].slice(0, 15);
-         });
-      }
-
-      toast({ title: "🎁 Gift Sent!", description: `You sent ₦${finalAmount.toLocaleString()} to the host.` });
-      setGiftAmount(null);
-      setCustomGiftAmount("");
-      setGiftMessage("");
-      setIsAnonymous(false);
-      setShowGiftPanel(false);
-      setSubmissionType('gift');
-      setIsSubmitted(true);
-      
-      // Gold Confetti
-      const duration = 3000;
-      const end = Date.now() + duration;
-      const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"]; // Red (Primary) + Gold theme
-
-      const frame = () => {
-        confetti({
-          particleCount: 7,
-          angle: 60,
-          spread: 70,
-          origin: { x: 0, y: 0.8 },
-          colors,
-          zIndex: 9999
-        });
-        confetti({
-          particleCount: 7,
-          angle: 120,
-          spread: 70,
-          origin: { x: 1, y: 0.8 },
-          colors,
-          zIndex: 9999
-        });
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
+      // 1. Initiate Payment with Edge Function (USER'S FUNCTION)
+      const payload = {
+        amount: finalAmount,
+        currency: "NGN",
+        email: memoryEvent.hostEmail || "anthonyosunde45@gmail.com",
+        name: guestName.trim(),
+        user_id: memoryEvent.hostId || "guest_user",
+        redirect_url: window.location.href, // Pass the current page URL for redirect
+        eventId: memoryEvent.id, // For metadata
+        message: giftMessage.trim(), // For metadata
       };
-      frame();
 
-      triggerHearts();
+      console.log("Sending Gift Payload:", JSON.stringify(payload, null, 2));
 
-    } catch (error) {
-       console.error('Error sending gift:', error);
-       toast({ title: "Error", description: "Failed to send gift. Please try again.", variant: "destructive" });
+      // Save expected amount to localStorage for verification after redirect
+      localStorage.setItem(`pending_gift_amount_${shareCode}`, finalAmount.toString());
+
+      const { data: result, error: invokeError } = await supabase.functions.invoke('flutterwave-payment', {
+        body: payload
+      });
+
+      if (invokeError) throw invokeError;
+
+      // User's function returns: { data: { link: ..., tx_ref: ... } }
+      const paymentLink = result?.data?.link;
+
+      if (paymentLink) {
+        window.location.href = paymentLink;
+      } else {
+        throw new Error(result?.error || "Failed to initiate payment: No link returned");
+      }
+    } catch (error: any) {
+      console.error('Error initiating gift:', error);
+      if (error.context) {
+        try {
+          const errorBody = await error.context.json();
+          console.error('Function error body:', errorBody);
+        } catch (e) {
+          console.error('Could not parse function error body');
+        }
+      }
+      toast({ title: "Payment Error", description: "Could not start the payment process. Please try again.", variant: "destructive" });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -899,7 +990,7 @@ const GuestUpload = () => {
     <PageTransition>
       <div className="min-h-screen relative flex flex-col dark bg-black font-inter overflow-x-hidden">
         <FloatingHearts hearts={hearts} onComplete={removeHeart} />
-        
+
         {/* Hamburger Menu Button */}
         <div className="fixed top-6 right-6 z-[60]">
           <Button
@@ -985,14 +1076,14 @@ const GuestUpload = () => {
                             <span>{formatEventTime(memoryEvent.religiousRiteStartTime)} - {formatEventTime(memoryEvent.religiousRiteEndTime)}</span>
                           </div>
                           {memoryEvent.isLocationPublic && (
-                             <a 
-                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.religiousRiteVenue)}`}
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
-                             >
-                               Get Directions
-                             </a>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.religiousRiteVenue)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
+                            >
+                              Get Directions
+                            </a>
                           )}
                         </div>
                       </div>
@@ -1001,7 +1092,7 @@ const GuestUpload = () => {
                     {/* Reception */}
                     {memoryEvent.receptionVenue && (
                       <div className="space-y-4 pt-4 border-t border-white/5">
-                         <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center text-orange-400 mb-6">
+                        <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center text-orange-400 mb-6">
                           <Clock className="w-6 h-6" />
                         </div>
                         <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Reception</h4>
@@ -1012,14 +1103,14 @@ const GuestUpload = () => {
                             <span>From {formatEventTime(memoryEvent.receptionStartTime)}</span>
                           </div>
                           {memoryEvent.isLocationPublic && (
-                             <a 
-                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.receptionVenue)}`}
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
-                             >
-                               Get Directions
-                             </a>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(memoryEvent.receptionVenue)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider hover:underline pt-2"
+                            >
+                              Get Directions
+                            </a>
                           )}
                         </div>
                       </div>
@@ -1037,9 +1128,9 @@ const GuestUpload = () => {
         {/* Faded Backdrop */}
         <div className="fixed inset-0 z-0">
           {memoryEvent.coverImage ? (
-            <img 
-              src={memoryEvent.coverImage} 
-              alt="" 
+            <img
+              src={memoryEvent.coverImage}
+              alt=""
               className="w-full h-full object-cover"
             />
           ) : (
@@ -1057,8 +1148,8 @@ const GuestUpload = () => {
               </div>
               <h1 className="text-3xl font-display font-bold text-white mb-1 tracking-tight">{memoryEvent.name}</h1>
               <p className="text-white/60 text-sm">
-                {memoryEvent.type === 'other' && memoryEvent.customType 
-                  ? memoryEvent.customType 
+                {memoryEvent.type === 'other' && memoryEvent.customType
+                  ? memoryEvent.customType
                   : EVENT_TYPE_LABELS[memoryEvent.type]}
               </p>
             </div>
@@ -1073,301 +1164,300 @@ const GuestUpload = () => {
 
             {/* Glassmorphism Card */}
             <div className="flex flex-col items-center">
-            <AnimatePresence mode="wait">
-              {isSubmitted ? (
-                <motion.div
-                  key="thank-you"
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.1, y: -20 }}
-                  className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-10 text-center shadow-2xl relative overflow-hidden"
-                >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-                  
-                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-8 relative">
-                    <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                    <CheckCircle2 className="w-10 h-10 text-primary relative z-10" />
-                  </div>
-                  
-                  <h2 className="text-3xl font-display font-bold text-white mb-4 tracking-tight">
-                    {submissionType === 'gift' ? 'Gift Sent!' : 'Memories Shared!'}
-                  </h2>
-                  <p className="text-white/60 text-base leading-relaxed mb-10">
-                    {submissionType === 'gift' 
-                      ? `Thank you for your generous gift to ${memoryEvent.name}. Your support is truly appreciated.`
-                      : `Thank you for being part of ${memoryEvent.name}. Your contribution has been added to the collection.`}
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <Button
-                      onClick={() => setIsSubmitted(false)}
-                      className="w-full h-14 rounded-2xl text-base gap-3 bg-white text-black hover:bg-white/90 shadow-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <Sparkles className="w-5 h-5 text-primary" />
-                      Keep Sharing
-                    </Button>
-                    <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold">Scroll down to see the feed</p>
-                  </div>
-                </motion.div>
-              ) : !isEventStarted ? (
-                <motion.div 
-                  key="waiting"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="w-full max-w-sm flex flex-col items-center gap-8"
-                >
-                  <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-8 w-full text-center shadow-2xl">
-                    <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
-                      <Lock className="w-8 h-8 text-white/50" />
+              <AnimatePresence mode="wait">
+                {isSubmitted ? (
+                  <motion.div
+                    key="thank-you"
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 1.1, y: -20 }}
+                    className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2.5rem] p-10 text-center shadow-2xl relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
+
+                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-8 relative">
+                      <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                      <CheckCircle2 className="w-10 h-10 text-primary relative z-10" />
                     </div>
-                    <h2 className="text-xl font-semibold text-white mb-2">Coming Soon</h2>
-                    <p className="text-white/60 text-sm leading-relaxed mb-6">
-                      Uploads open automatically when event starts.
+
+                    <h2 className="text-3xl font-display font-bold text-white mb-4 tracking-tight">
+                      {submissionType === 'gift' ? 'Gift Sent!' : 'Memories Shared!'}
+                    </h2>
+                    <p className="text-white/60 text-base leading-relaxed mb-10">
+                      {submissionType === 'gift'
+                        ? `Thank you for your generous gift to ${memoryEvent.name}. Your support is truly appreciated.`
+                        : `Thank you for being part of ${memoryEvent.name}. Your contribution has been added to the collection.`}
                     </p>
-                    <div className="py-3 px-4 bg-white/5 rounded-full border border-white/10 inline-flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-xs text-white/80 font-medium tracking-wide">Waiting for host...</span>
+
+                    <div className="space-y-4">
+                      <Button
+                        onClick={() => setIsSubmitted(false)}
+                        className="w-full h-14 rounded-2xl text-base gap-3 bg-white text-black hover:bg-white/90 shadow-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <Sparkles className="w-5 h-5 text-primary" />
+                        Keep Sharing
+                      </Button>
+                      <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold">Scroll down to see the feed</p>
                     </div>
-                  </div>
-                  
-                  <RotatingMessages />
-                </motion.div>
-              ) : (
-                <motion.div 
-                  key="active"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-6 space-y-6 shadow-2xl"
-                >
-                  {/* Name Input / Identity Chip */}
-                  <div className="space-y-3">
-                    <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold block px-1">Guest Identity</label>
-                    {guestName && !isEditingName ? (
-                      <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 group animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase ring-1 ring-white/10">
-                            {guestName[0]}
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-white/40 uppercase font-bold tracking-tight">Posting as</p>
-                            <p className="text-sm font-semibold text-white">{guestName}</p>
-                          </div>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setIsEditingName(true)}
-                          className="h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white hover:bg-white/10 transition-all shadow-none"
-                        >
-                          Change
-                        </Button>
+                  </motion.div>
+                ) : !isEventStarted ? (
+                  <motion.div
+                    key="waiting"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="w-full max-w-sm flex flex-col items-center gap-8"
+                  >
+                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-8 w-full text-center shadow-2xl">
+                      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
+                        <Lock className="w-8 h-8 text-white/50" />
                       </div>
-                    ) : (
-                      <Input
-                        placeholder="Enter your name"
-                        value={guestName}
-                        onChange={(e) => setGuestName(e.target.value)}
-                        onBlur={() => guestName && setIsEditingName(false)}
-                        onKeyDown={(e) => e.key === 'Enter' && guestName && setIsEditingName(false)}
-                        autoFocus={isEditingName}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 h-12 rounded-xl transition-all"
-                      />
-                    )}
-                  </div>
-
-                  {/* Photo Previews */}
-                  {selectedFiles.length > 0 && (
-                    <div className="py-2">
-                      {selectedFiles.length >= 5 ? (
-                        /* Stack View for 5+ files */
-                        <div className="flex -space-x-4 overflow-hidden py-2 px-1">
-                          {selectedFiles.slice(0, 4).map((file, i) => (
-                            <div 
-                              key={i} 
-                              className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-black/40 shadow-xl flex-shrink-0 transition-transform hover:-translate-y-1"
-                              style={{ zIndex: selectedFiles.length - i }}
-                            >
-                              <img 
-                                src={URL.createObjectURL(file)} 
-                                alt="Preview"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ))}
-                          {selectedFiles.length > 4 && (
-                            <div className="relative w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white text-xs font-bold shadow-xl z-0">
-                               +{selectedFiles.length - 4}
-                            </div>
-                          )}
-                          {!isSubmitting && (
-                            <button
-                              onClick={() => setSelectedFiles([])}
-                              className="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/20 transition-all self-center"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        /* Grid View for < 5 files */
-                        <div className="grid grid-cols-3 gap-2">
-                          {selectedFiles.map((file, i) => (
-                            <div key={i} className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group">
-                              <img 
-                                src={URL.createObjectURL(file)} 
-                                alt="Preview"
-                                className="w-full h-full object-cover"
-                              />
-                              {!isSubmitting ? (
-                                <button
-                                  onClick={() => removeFile(i)}
-                                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
-                                >
-                                  <X className="w-3 h-3 text-white" />
-                                </button>
-                              ) : (
-                                <div className="absolute inset-x-1 bottom-1">
-                                  <Progress value={uploadProgress[file.name] || 0} className="h-1" />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <h2 className="text-xl font-semibold text-white mb-2">Coming Soon</h2>
+                      <p className="text-white/60 text-sm leading-relaxed mb-6">
+                        Uploads open automatically when event starts.
+                      </p>
+                      <div className="py-3 px-4 bg-white/5 rounded-full border border-white/10 inline-flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-xs text-white/80 font-medium tracking-wide">Waiting for host...</span>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Upload Button */}
-                  {memoryEvent.isUploadsEnabled && (
+                    <RotatingMessages />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="active"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-6 space-y-6 shadow-2xl"
+                  >
+                    {/* Name Input / Identity Chip */}
                     <div className="space-y-3">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,video/*"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      {selectedFiles.length === 0 ? (
-                        <Button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full h-14 rounded-2xl text-base gap-3 bg-white text-black hover:bg-white/90 shadow-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-                          size="lg"
-                          disabled={isSubmitting}
-                        >
-                          <Camera className="w-5 h-5" />
-                          Share Memories
-                        </Button>
-                      ) : (
-                        <div className="flex gap-2">
-                          {!isSubmitting && (
-                            <Button
-                              onClick={() => fileInputRef.current?.click()}
-                              variant="outline"
-                              className="flex-1 h-12 rounded-xl border-white/10 text-white bg-white/5 hover:bg-white/10 hover:text-white"
-                            >
-                              Add More
-                            </Button>
-                          )}
+                      <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold block px-1">Guest Identity</label>
+                      {guestName && !isEditingName ? (
+                        <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 group animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-white uppercase ring-1 ring-white/10">
+                              {guestName[0]}
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-white/40 uppercase font-bold tracking-tight">Posting as</p>
+                              <p className="text-sm font-semibold text-white">{guestName}</p>
+                            </div>
+                          </div>
                           <Button
-                            onClick={handleSubmitMedia}
-                            disabled={isSubmitting}
-                            className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg relative overflow-hidden ${
-                              isSubmitting ? "w-full bg-primary/20 text-white/50" : "flex-1 bg-primary hover:bg-primary/90 text-white ring-2 ring-primary/20"
-                            }`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditingName(true)}
+                            className="h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/40 hover:text-white hover:bg-white/10 transition-all shadow-none"
                           >
-                            {isSubmitting ? (
-                              <>
-                                <div className="absolute inset-0 bg-primary/20 animate-pulse" />
-                                <span className="relative z-10 flex items-center gap-2">
-                                  {isCompressing ? (
-                                    <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      Compressing...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      Sending {totalProgress}%
-                                    </>
-                                  )}
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-4 h-4" />
-                                Push {selectedFiles.length}
-                              </>
-                            )}
+                            Change
                           </Button>
                         </div>
+                      ) : (
+                        <Input
+                          placeholder="Enter your name"
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          onBlur={() => guestName && setIsEditingName(false)}
+                          onKeyDown={(e) => e.key === 'Enter' && guestName && setIsEditingName(false)}
+                          autoFocus={isEditingName}
+                          className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 h-12 rounded-xl transition-all"
+                        />
                       )}
                     </div>
-                  )}
 
-                  {/* Comment Section */}
-                  <div className="pt-2 space-y-3">
-                  {memoryEvent.isMessagesEnabled && (
-                    <>
-                      {!showCommentBox ? (
-                        <Button
-                          variant="ghost"
-                          onClick={() => setShowCommentBox(true)}
-                          className="w-full h-12 rounded-xl border border-white/10 text-white/80 bg-white/5 hover:bg-white/10 hover:text-white gap-2 transition-all"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          Leave a Message
-                        </Button>
-                      ) : (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                          <Textarea
-                            placeholder="Write your celebration message..."
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            rows={3}
-                            className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 rounded-xl resize-none p-4"
-                          />
+                    {/* Photo Previews */}
+                    {selectedFiles.length > 0 && (
+                      <div className="py-2">
+                        {selectedFiles.length >= 5 ? (
+                          /* Stack View for 5+ files */
+                          <div className="flex -space-x-4 overflow-hidden py-2 px-1">
+                            {selectedFiles.slice(0, 4).map((file, i) => (
+                              <div
+                                key={i}
+                                className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-black/40 shadow-xl flex-shrink-0 transition-transform hover:-translate-y-1"
+                                style={{ zIndex: selectedFiles.length - i }}
+                              >
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ))}
+                            {selectedFiles.length > 4 && (
+                              <div className="relative w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white text-xs font-bold shadow-xl z-0">
+                                +{selectedFiles.length - 4}
+                              </div>
+                            )}
+                            {!isSubmitting && (
+                              <button
+                                onClick={() => setSelectedFiles([])}
+                                className="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/20 transition-all self-center"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          /* Grid View for < 5 files */
+                          <div className="grid grid-cols-3 gap-2">
+                            {selectedFiles.map((file, i) => (
+                              <div key={i} className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                                {!isSubmitting ? (
+                                  <button
+                                    onClick={() => removeFile(i)}
+                                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    <X className="w-3 h-3 text-white" />
+                                  </button>
+                                ) : (
+                                  <div className="absolute inset-x-1 bottom-1">
+                                    <Progress value={uploadProgress[file.name] || 0} className="h-1" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload Button */}
+                    {memoryEvent.isUploadsEnabled && (
+                      <div className="space-y-3">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*,video/*"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileSelect}
+                        />
+                        {selectedFiles.length === 0 ? (
+                          <Button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full h-14 rounded-2xl text-base gap-3 bg-white text-black hover:bg-white/90 shadow-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            size="lg"
+                            disabled={isSubmitting}
+                          >
+                            <Camera className="w-5 h-5" />
+                            Share Memories
+                          </Button>
+                        ) : (
                           <div className="flex gap-2">
+                            {!isSubmitting && (
+                              <Button
+                                onClick={() => fileInputRef.current?.click()}
+                                variant="outline"
+                                className="flex-1 h-12 rounded-xl border-white/10 text-white bg-white/5 hover:bg-white/10 hover:text-white"
+                              >
+                                Add More
+                              </Button>
+                            )}
                             <Button
-                              variant="ghost"
-                              onClick={() => { setShowCommentBox(false); setMessage(""); }}
-                              className="flex-1 h-11 rounded-xl text-white/60 hover:text-white hover:bg-white/5"
+                              onClick={handleSubmitMedia}
+                              disabled={isSubmitting}
+                              className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg relative overflow-hidden ${isSubmitting ? "w-full bg-primary/20 text-white/50" : "flex-1 bg-primary hover:bg-primary/90 text-white ring-2 ring-primary/20"
+                                }`}
                             >
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={handleSubmitMessage}
-                              disabled={!message.trim() || isSubmitting}
-                              className="flex-1 h-11 rounded-xl gap-2 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg"
-                            >
-                              <Send className="w-4 h-4" />
-                              {isSubmitting ? "Sending..." : "Publish"}
+                              {isSubmitting ? (
+                                <>
+                                  <div className="absolute inset-0 bg-primary/20 animate-pulse" />
+                                  <span className="relative z-10 flex items-center gap-2">
+                                    {isCompressing ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Compressing...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Sending {totalProgress}%
+                                      </>
+                                    )}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4" />
+                                  Push {selectedFiles.length}
+                                </>
+                              )}
                             </Button>
                           </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  
-                  {/* Gifting Button */}
-                  {memoryEvent.isGiftingEnabled && !showCommentBox && (
-                    <Button 
-                        variant="ghost" 
-                        className="w-full h-12 rounded-xl text-amber-300/80 hover:text-amber-300 hover:bg-amber-500/10 font-medium"
-                        onClick={() => setShowGiftPanel(true)}
-                    >
-                        <Banknote className="w-4 h-4 mr-2" />
-                        Send a cash gift
-                    </Button>
-                  )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                        )}
+                      </div>
+                    )}
 
-               {/* Gifting Modal */}
-                <AnimatePresence>
+                    {/* Comment Section */}
+                    <div className="pt-2 space-y-3">
+                      {memoryEvent.isMessagesEnabled && (
+                        <>
+                          {!showCommentBox ? (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setShowCommentBox(true)}
+                              className="w-full h-12 rounded-xl border border-white/10 text-white/80 bg-white/5 hover:bg-white/10 hover:text-white gap-2 transition-all"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              Leave a Message
+                            </Button>
+                          ) : (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                              <Textarea
+                                placeholder="Write your celebration message..."
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                rows={3}
+                                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 rounded-xl resize-none p-4"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => { setShowCommentBox(false); setMessage(""); }}
+                                  className="flex-1 h-11 rounded-xl text-white/60 hover:text-white hover:bg-white/5"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={handleSubmitMessage}
+                                  disabled={!message.trim() || isSubmitting}
+                                  className="flex-1 h-11 rounded-xl gap-2 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg"
+                                >
+                                  <Send className="w-4 h-4" />
+                                  {isSubmitting ? "Sending..." : "Publish"}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Gifting Button */}
+                      {memoryEvent.isGiftingEnabled && !showCommentBox && (
+                        <Button
+                          variant="ghost"
+                          className="w-full h-12 rounded-xl text-amber-300/80 hover:text-amber-300 hover:bg-amber-500/10 font-medium"
+                          onClick={() => setShowGiftPanel(true)}
+                        >
+                          <Banknote className="w-4 h-4 mr-2" />
+                          Send a cash gift
+                        </Button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Gifting Modal */}
+              <AnimatePresence>
                 {showGiftPanel && (
                   <motion.div
                     initial={{ opacity: 0, y: 50 }}
@@ -1375,134 +1465,132 @@ const GuestUpload = () => {
                     exit={{ opacity: 0, y: 50 }}
                     className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/20 backdrop-blur-lg"
                   >
-                   <div className="w-full max-w-sm bg-white/90 dark:bg-black/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
-                     {/* Decorative Elements */}
-                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
-                     
-                     <div className="relative">
+                    <div className="w-full max-w-sm bg-white/90 dark:bg-black/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden ring-1 ring-black/5 dark:ring-white/5">
+                      {/* Decorative Elements */}
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+                      <div className="relative">
                         <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-center backdrop-blur-md">
-                                    <Banknote className="w-5 h-5 text-primary" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-display font-bold text-foreground tracking-tight">Send a Gift</h3>
-                                    <p className="text-muted-foreground/60 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
-                                </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center justify-center backdrop-blur-md">
+                              <Banknote className="w-5 h-5 text-primary" />
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                                <X className="w-4 h-4" />
-                            </Button>
+                            <div>
+                              <h3 className="text-xl font-display font-bold text-foreground tracking-tight">Send a Gift</h3>
+                              <p className="text-muted-foreground/60 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
-                        
-                            <div className="mb-6 space-y-2">
-                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
-                                <Input
-                                    placeholder="Enter your full name"
-                                    value={guestName}
-                                    onChange={(e) => setGuestName(e.target.value)}
-                                    className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-xl h-12 focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all px-4"
-                                />
-                            </div>
+
+                        <div className="mb-6 space-y-2">
+                          <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
+                          <Input
+                            placeholder="Enter your full name"
+                            value={guestName}
+                            onChange={(e) => setGuestName(e.target.value)}
+                            className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-xl h-12 focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all px-4"
+                          />
+                        </div>
 
                         <div className="space-y-6">
-                            <div className="space-y-3">
-                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[1000, 2000, 5000, 10000].map((amount) => (
-                                        <button
-                                            key={amount}
-                                            onClick={() => {
-                                                setGiftAmount(amount);
-                                                setCustomGiftAmount("");
-                                            }}
-                                            className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${
-                                                giftAmount === amount 
-                                                ? "bg-primary border-primary text-white shadow-lg shadow-primary/25" 
-                                                : "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
-                                            }`}
-                                        >
-                                            <span className="text-[10px] opacity-60 font-medium">₦</span>
-                                            <span className="text-lg tracking-tight">{amount.toLocaleString()}</span>
-                                            {giftAmount === amount && (
-                                                <motion.div
-                                                    layoutId="active-glow"
-                                                    className="absolute inset-0 bg-white/20"
-                                                    initial={false}
-                                                    transition={{ duration: 0.3 }}
-                                                />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="relative group">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-serif italic text-lg pointer-events-none group-focus-within:text-primary/70 transition-colors">₦</div>
-                                <Input
-                                    type="number"
-                                    placeholder="Enter custom amount"
-                                    value={customGiftAmount}
-                                    onChange={(e) => {
-                                        setCustomGiftAmount(e.target.value);
-                                        setGiftAmount(null);
-                                    }}
-                                    className={`pl-10 h-14 bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Gift Message</Label>
-                                <Textarea
-                                    placeholder="Add a sweet message for the couple..."
-                                    value={giftMessage}
-                                    onChange={(e) => setGiftMessage(e.target.value)}
-                                    className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl min-h-[100px] resize-none focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all p-4"
-                                />
-                            </div>
-
-                            <div className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id="anonymous" 
-                                    checked={isAnonymous}
-                                    onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
-                                    className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                                />
-                                <Label htmlFor="anonymous" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white/80 cursor-pointer">
-                                    Make my gift anonymous
-                                </Label>
-                            </div>
-
-                            <div className="pt-2 space-y-4">
-                                <div className="flex items-center gap-2 justify-center bg-white/5 rounded-full py-2 px-4 border border-white/5">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    <p className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
-                                        Secure Payment via Paystack (Demo)
-                                    </p>
-                                </div>
-                                <Button 
-                                    onClick={handleSubmitGift} 
-                                    disabled={isSubmitting || (!giftAmount && !customGiftAmount)}
-                                    className={`w-full h-14 rounded-2xl text-white font-bold text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                                        !giftAmount && !customGiftAmount 
-                                        ? "bg-white/10 text-white/20 cursor-not-allowed" 
-                                        : "bg-gradient-to-r from-primary to-orange-600 hover:shadow-primary/20"
+                          <div className="space-y-3">
+                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {[1000, 2000, 5000, 10000].map((amount) => (
+                                <button
+                                  key={amount}
+                                  onClick={() => {
+                                    setGiftAmount(amount);
+                                    setCustomGiftAmount("");
+                                  }}
+                                  className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${giftAmount === amount
+                                    ? "bg-primary border-primary text-white shadow-lg shadow-primary/25"
+                                    : "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
                                     }`}
                                 >
-                                    {isSubmitting ? (
-                                        <div className="flex items-center gap-2">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            <span>Processing...</span>
-                                        </div>
-                                    ) : (
-                                        <span>Send ₦{(giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0)).toLocaleString()} Gift</span>
-                                    )}
-                                </Button>
+                                  <span className="text-[10px] opacity-60 font-medium">₦</span>
+                                  <span className="text-lg tracking-tight">{amount.toLocaleString()}</span>
+                                  {giftAmount === amount && (
+                                    <motion.div
+                                      layoutId="active-glow"
+                                      className="absolute inset-0 bg-white/20"
+                                      initial={false}
+                                      transition={{ duration: 0.3 }}
+                                    />
+                                  )}
+                                </button>
+                              ))}
                             </div>
+                          </div>
+
+                          <div className="relative group">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-serif italic text-lg pointer-events-none group-focus-within:text-primary/70 transition-colors">₦</div>
+                            <Input
+                              type="number"
+                              placeholder="Enter custom amount"
+                              value={customGiftAmount}
+                              onChange={(e) => {
+                                setCustomGiftAmount(e.target.value);
+                                setGiftAmount(null);
+                              }}
+                              className={`pl-10 h-14 bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Gift Message</Label>
+                            <Textarea
+                              placeholder="Add a sweet message for the couple..."
+                              value={giftMessage}
+                              onChange={(e) => setGiftMessage(e.target.value)}
+                              className="bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl min-h-[100px] resize-none focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all p-4"
+                            />
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="anonymous"
+                              checked={isAnonymous}
+                              onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
+                              className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                            <Label htmlFor="anonymous" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white/80 cursor-pointer">
+                              Make my gift anonymous
+                            </Label>
+                          </div>
+
+                          <div className="pt-2 space-y-4">
+                            <div className="flex items-center gap-2 justify-center bg-white/5 rounded-full py-2 px-4 border border-white/5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <p className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
+                                Secure Payment via Paystack (Demo)
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleSubmitGift}
+                              disabled={isSubmitting || (!giftAmount && !customGiftAmount)}
+                              className={`w-full h-14 rounded-2xl text-white font-bold text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${!giftAmount && !customGiftAmount
+                                ? "bg-white/10 text-white/20 cursor-not-allowed"
+                                : "bg-gradient-to-r from-primary to-orange-600 hover:shadow-primary/20"
+                                }`}
+                            >
+                              {isSubmitting ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-5 h-5 animate-spin" />
+                                  <span>Processing...</span>
+                                </div>
+                              ) : (
+                                <span>Send ₦{(giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0)).toLocaleString()} Gift</span>
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                     </div>
-                   </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1514,7 +1602,7 @@ const GuestUpload = () => {
             <div ref={feedRef} className="mt-16 w-full max-w-lg space-y-6 mx-auto relative px-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-white/10" />
-                <button 
+                <button
                   onClick={() => setShowLiveFeed(!showLiveFeed)}
                   className="text-white/40 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 hover:text-white transition-colors py-2"
                 >
@@ -1547,44 +1635,44 @@ const GuestUpload = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-              
+
               <AnimatePresence>
-          {showLiveFeed && (
-            <motion.div
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="space-y-8"
-            >
-              <LiveFeed items={feedItems} isLoading={isFeedLoading} />
-              
-              {hasMore && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    onClick={handleLoadMore}
-                    disabled={isLoadingMore}
-                    variant="ghost"
-                    className="h-12 px-8 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all font-semibold gap-2 shadow-xl"
+                {showLiveFeed && (
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="space-y-8"
                   >
-                    {isLoadingMore ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Exploring...
-                      </>
-                    ) : (
-                      <>
-                        View More Moments
-                        <ChevronDown className="w-4 h-4" />
-                      </>
+                    <LiveFeed items={feedItems} isLoading={isFeedLoading} />
+
+                    {hasMore && (
+                      <div className="flex justify-center pt-4">
+                        <Button
+                          onClick={handleLoadMore}
+                          disabled={isLoadingMore}
+                          variant="ghost"
+                          className="h-12 px-8 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all font-semibold gap-2 shadow-xl"
+                        >
+                          {isLoadingMore ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Exploring...
+                            </>
+                          ) : (
+                            <>
+                              View More Moments
+                              <ChevronDown className="w-4 h-4" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          )}
+                  </motion.div>
+                )}
               </AnimatePresence>
-              
+
               {/* Scroll Reminder */}
               {!hasNewActivity && feedItems.length > 0 && (
                 <motion.div

@@ -1,4 +1,4 @@
-export type EventType = 
+export type EventType =
   | 'wedding'
   | 'birthday'
   | 'anniversary'
@@ -15,8 +15,14 @@ export interface EventUpload {
   guestName?: string;
   createdAt: string;
   isApproved: boolean;
-  giftAmount?: number;
-  giftMessage?: string;
+
+  // Gift Fields (aligned with gifts table)
+  amount?: number;
+  currency?: string;
+  message?: string;
+  paymentRef?: string;
+  status?: 'pending' | 'successful' | 'failed';
+  senderId?: string;
   isAnonymous?: boolean;
 }
 
@@ -37,7 +43,8 @@ export interface MemoryEvent {
   isLocked: boolean;
   isLiveFeedEnabled: boolean;
   uploads: EventUpload[];
-  
+  hostEmail?: string;
+
   // Wedding Specific Fields
   groomFirstName?: string;
   groomLastName?: string;

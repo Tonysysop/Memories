@@ -19,7 +19,8 @@ export const useEvents = () => {
         .select(`
           *,
           media(id, file_type, created_at, is_approved),
-          messages(id, created_at)
+          messages(id, created_at),
+          gifts(id, amount, message, created_at, status)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -65,6 +66,14 @@ export const useEvents = () => {
             type: 'message' as const,
             createdAt: m.created_at,
             isApproved: true
+          })),
+          ...(e.gifts || []).filter((g: any) => g.status === 'successful').map((g: any) => ({
+            id: g.id,
+            type: 'gift' as const,
+            createdAt: g.created_at,
+            isApproved: true,
+            giftAmount: g.amount,
+            giftMessage: g.message
           }))
         ]
       })) as MemoryEvent[];
@@ -216,6 +225,14 @@ export const useEvents = () => {
 
       if (mediaError) throw mediaError;
 
+      // Then delete associated gifts
+      const { error: giftError } = await supabase
+        .from('gifts')
+        .delete()
+        .eq('event_id', cleanId);
+
+      if (giftError) throw giftError;
+
       // Finally delete the event
       const { data, error } = await supabase
         .from('events')
@@ -264,8 +281,12 @@ export const useEvents = () => {
       if (msgError) throw msgError;
       if (msgCount !== null && msgCount > 0) return;
 
-      const { error: mediaError } = await supabase.from('media').delete().eq('id', uploadId);
+      const { error: mediaError, count: mediaCount } = await supabase.from('media').delete({ count: 'exact' }).eq('id', uploadId);
       if (mediaError) throw mediaError;
+      if (mediaCount !== null && mediaCount > 0) return;
+
+      const { error: giftError } = await supabase.from('gifts').delete().eq('id', uploadId);
+      if (giftError) throw giftError;
     },
     onSuccess: () => {
       toast.success('Content deleted');
