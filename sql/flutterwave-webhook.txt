@@ -3,34 +3,34 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
   try {
-    // 1. SECURITY: Check the Secret Hash
+    // 1. SECURITY: Verify Flutterwave webhook hash
     const signature = req.headers.get("verif-hash");
     const MY_SECRET_HASH = Deno.env.get("FLW_WEBHOOK_HASH");
 
     if (!signature || signature !== MY_SECRET_HASH) {
-      console.error("Unauthorized webhook attempt: hash mismatch or missing");
+      console.error("Unauthorized webhook attempt");
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // 2. Parse the payload from Flutterwave
+    // 2. Parse payload
     const body = await req.json();
-    console.log("Webhook received payload:", JSON.stringify(body, null, 2));
+    console.log("Webhook payload:", JSON.stringify(body, null, 2));
 
-    // 3. Initialize Supabase
+    // 3. Init Supabase
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // 4. Process successful transactions
+    // 4. Process successful payments
     if (
       body.status === "successful" ||
-      (body.event === "charge.completed" && body.data?.status === "successful")
+      (body.event === "charge.completed" &&
+        body.data?.status === "successful")
     ) {
-      const data = body.data || body; // Flutterwave sends either raw payload or inside 'data'
+      const data = body.data || body;
       const { amount, tx_ref, currency, customer, meta } = data;
 
-      // Extract metadata (Handling potential stringified JSON if FLW parses it that way)
       const eventId = meta?.eventId || meta?.event_id;
       const message = meta?.message || "";
       const senderId =
@@ -39,41 +39,131 @@ serve(async (req) => {
           : null;
 
       if (!eventId) {
-        console.error("Webhook Error: Missing eventId in metadata", meta);
-        return new Response("Missing eventId", { status: 200 }); // Still 200 to FLW to avoid retries on bad data
+        console.error("Webhook error: Missing eventId", meta);
+        return new Response("Missing eventId", { status: 200 });
       }
 
-      // 5. Update the 'gifts' table
-      // Use upsert to prevent duplicate records if verification and webhook both run
+      // 5. Save gift (idempotent)
       const { error: dbError } = await supabase.from("gifts").upsert(
         [
           {
             event_id: eventId,
             sender_id: senderId,
             guest_name: customer?.name || "Guest",
-            amount: amount,
-            currency: currency,
-            message: message,
+            amount,
+            currency,
+            message,
             payment_ref: tx_ref,
             status: "successful",
           },
         ],
-        { onConflict: "payment_ref" },
+        { onConflict: "payment_ref" }
       );
 
       if (dbError) {
-        console.error("Database Error in Webhook:", dbError);
-        return new Response(`DB Error: ${dbError.message}`, { status: 400 });
+        console.error("Webhook DB error:", dbError);
+        return new Response("Database error", { status: 400 });
       }
 
-      console.log(
-        `Webhook processed successfully: ${tx_ref} for Event ${eventId}`,
-      );
-    } else {
-      console.log(
-        "Webhook received but status not successful:",
-        body.status || body.data?.status,
-      );
+      // 6. Fetch event + host
+      const { data: eventData, error: eventError } = await supabase
+        .from("events")
+        .select("title, user_id")
+        .eq("id", eventId)
+        .single();
+
+      if (!eventData || eventError) {
+        console.error("Webhook: Failed to fetch event", eventError);
+        return new Response(JSON.stringify({ received: true }), { status: 200 });
+      }
+
+      const { title: eventTitle, user_id: userId } = eventData;
+
+      const { data: userData, error: userError } =
+        await supabase.auth.admin.getUserById(userId);
+
+      const hostEmail = userData?.user?.email;
+
+      if (!hostEmail || userError) {
+        console.error("Webhook: Failed to fetch host email", userError);
+        return new Response(JSON.stringify({ received: true }), { status: 200 });
+      }
+
+      // 7. Send ZeptoMail notification
+      try {
+        const zeptoKey = Deno.env.get("ZEPTOMAIL_API_KEY");
+        const fromAddress = Deno.env.get("ZEPTOMAIL_FROM_ADDRESS");
+        const fromName =
+          Deno.env.get("ZEPTOMAIL_FROM_NAME") || "Memories App";
+
+        if (!zeptoKey || !fromAddress) {
+          console.error("Missing ZeptoMail configuration");
+          return new Response(JSON.stringify({ received: true }), { status: 200 });
+        }
+
+        const payload = {
+          from: {
+            address: fromAddress.toLowerCase(),
+            name: fromName,
+          },
+          to: [
+            {
+              email_address: {
+                address: hostEmail.toLowerCase(),
+                name: "Event Host",
+              },
+            },
+          ],
+          subject: `🎁 New Gift Received for ${eventTitle}!`,
+          htmlbody: `
+            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+              <h2>You've received a new gift 🎉</h2>
+              <p><strong>Event:</strong> ${eventTitle}</p>
+
+              <div style="background:#f4f4f4;padding:15px;border-radius:8px;margin:20px 0;">
+                <p><strong>Amount:</strong> ${currency} ${amount.toLocaleString()}</p>
+                <p><strong>From:</strong> ${customer?.name || "Guest"}</p>
+                ${
+                  message
+                    ? `<p><strong>Message:</strong> "${message}"</p>`
+                    : ""
+                }
+              </div>
+
+              <p>Log in to your dashboard to view all gifts.</p>
+
+              <hr />
+              <p style="font-size:12px;color:#666;">
+                This is an automated notification from Memories.
+              </p>
+            </div>
+          `,
+        };
+
+        const emailResponse = await fetch(
+          "https://api.zeptomail.com/v1.1/email",
+          {
+            method: "POST",
+            headers: {
+              accept: "application/json",
+              "content-type": "application/json",
+              authorization: zeptoKey,
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!emailResponse.ok) {
+          const err = await emailResponse.json();
+          console.error("Webhook ZeptoMail error:", err);
+        } else {
+          console.log(`Webhook email sent to ${hostEmail}`);
+        }
+      } catch (emailErr) {
+        console.error("Webhook email exception:", emailErr);
+      }
+
+      console.log(`Webhook processed: ${tx_ref} → Event ${eventId}`);
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -81,7 +171,7 @@ serve(async (req) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("Webhook system error:", err.message);
+    console.error("Webhook fatal error:", err.message);
     return new Response(`Error: ${err.message}`, { status: 400 });
   }
 });

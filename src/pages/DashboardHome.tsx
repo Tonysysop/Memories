@@ -1,34 +1,40 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useEvents } from "@/hooks/useEvent";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import EventCard from "@/components/dashboard/EventCard";
+import EventList from "@/components/dashboard/EventList";
+import FeaturedEventHero from "@/components/dashboard/FeaturedEventHero";
+import RecentMediaFeed from "@/components/dashboard/RecentMediaFeed";
 import EmptyState from "@/components/ui/EmptyState";
-import { Calendar, Image, Users } from "lucide-react";
 import type { MemoryEvent } from "@/types/event";
-import { useState } from "react"; // Added useState import
-import DeleteEventDialog from "@/components/dashboard/DeleteEventDialog"; // Added import
+import { useState, useMemo } from "react";
+import DeleteEventDialog from "@/components/dashboard/DeleteEventDialog";
 import QuickShareDialog from "@/components/dashboard/QuickShareDialog";
 import { Skeleton } from "@/components/ui/skeleton";
-
-// Note: We might need to access the "open create dialog" from the layout if we want this button to work.
-// For now, I'll temporarily hide the "New Event" button here or we can use an Outlet context.
-// Actually, let's just show stats and recent events.
 
 const DashboardHome = () => {
   const { user } = useAuth();
   const { events, isLoading: eventsLoading, updateEvent } = useEvents();
   const navigate = useNavigate();
-  const { setIsCreateDialogOpen } = useOutletContext<{ setIsCreateDialogOpen: (open: boolean) => void }>();
+  const { setIsCreateDialogOpen } = useOutletContext<{
+    setIsCreateDialogOpen: (open: boolean) => void;
+  }>();
 
-  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; id: string; name: string }>({
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    id: string;
+    name: string;
+  }>({
     isOpen: false,
-    id: '',
-    name: ''
+    id: "",
+    name: "",
   });
 
-  const [shareDialog, setShareDialog] = useState<{ isOpen: boolean; event: { id: string, name: string, shareCode: string } | null }>({
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    event: { id: string; name: string; shareCode: string } | null;
+  }>({
     isOpen: false,
-    event: null
+    event: null,
   });
 
   const handleViewEvent = (event: MemoryEvent) => {
@@ -36,7 +42,7 @@ const DashboardHome = () => {
   };
 
   const handleDeleteEvent = (id: string) => {
-    const event = events.find(e => e.id === id);
+    const event = events.find((e) => e.id === id);
     if (event) {
       setDeleteDialog({ isOpen: true, id, name: event.name });
     }
@@ -49,120 +55,161 @@ const DashboardHome = () => {
   const handleShareEvent = (event: MemoryEvent) => {
     setShareDialog({
       isOpen: true,
-      event: { id: event.id, name: event.name, shareCode: event.shareCode }
+      event: { id: event.id, name: event.name, shareCode: event.shareCode },
     });
   };
 
+  // Logic to determine featured event (next upcoming or most recent)
+  const featuredEvent = useMemo(() => {
+    if (events.length === 0) return null;
+
+    const now = new Date();
+    const upcoming = events
+      .filter((e) => e.eventDate && new Date(e.eventDate) >= now && !e.isLocked)
+      .sort(
+        (a, b) =>
+          new Date(a.eventDate!).getTime() - new Date(b.eventDate!).getTime(),
+      );
+
+    if (upcoming.length > 0) return upcoming[0];
+
+    return events
+      .filter((e) => !e.isLocked)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0];
+  }, [events]);
+
   // Stats
   const totalEvents = events.length;
-  const totalUploads = events.reduce((sum: number, e: MemoryEvent) => sum + e.uploads.length, 0);
+  const totalUploads = events.reduce(
+    (sum: number, e: MemoryEvent) =>
+      sum +
+      e.uploads.filter((u) => u.type === "photo" || u.type === "video").length,
+    0,
+  );
+  const totalGifts = events.reduce(
+    (sum: number, e: MemoryEvent) =>
+      sum + e.uploads.filter((u) => u.type === "gift").length,
+    0,
+  );
   const activeEvents = events.filter((e: MemoryEvent) => !e.isLocked).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10 pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-display font-bold">Welcome back, {user?.user_metadata?.name || 'User'}!</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your events and view collected memories
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{totalEvents}</p>
-              <p className="text-sm text-muted-foreground">Total Events</p>
-            </div>
-          </div>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-display font-bold">
+            Welcome back, {user?.user_metadata?.name || "User"}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your events and view collected memories
+          </p>
         </div>
 
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Image className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{totalUploads}</p>
-              <p className="text-sm text-muted-foreground">Total Memories</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{activeEvents}</p>
-              <p className="text-sm text-muted-foreground">Active Events</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Events Section */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Your Events</h2>
-          {/* TODO: Add 'View All' link if list is long */}
-        </div>
-
-        {eventsLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-4">
-                <Skeleton className="aspect-video w-full rounded-2xl" />
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                </div>
+        {/* Quick Stats Integrated in Header */}
+        <div className="flex items-center gap-8 bg-card/30 backdrop-blur-sm border border-border/40 p-1.5 pr-6 rounded-2xl">
+          <div className="flex -space-x-3 overflow-hidden p-1">
+            {events.slice(0, 3).map((e) => (
+              <div
+                key={e.id}
+                className="inline-block h-8 w-8 rounded-full ring-2 ring-background overflow-hidden bg-muted"
+              >
+                {e.coverImage ? (
+                  <img
+                    src={e.coverImage}
+                    className="h-full w-full object-cover"
+                    alt=""
+                  />
+                ) : (
+                  <div className="h-full w-full bg-primary/20" />
+                )}
               </div>
             ))}
+            {totalEvents > 3 && (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[10px] font-bold ring-2 ring-background">
+                +{totalEvents - 3}
+              </div>
+            )}
           </div>
-        ) : events.length === 0 ? (
-          <EmptyState 
-            title="No events yet" 
-            description="Create your first event to start collecting memories with your friends and family."
-            actionLabel="Create My First Event"
-            onAction={() => setIsCreateDialogOpen(true)}
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event: MemoryEvent) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onView={handleViewEvent}
-                onDelete={handleDeleteEvent}
-                onToggleLock={handleToggleLock}
-                onShare={handleShareEvent}
-              />
-            ))}
+          <div className="h-8 w-px bg-border/50" />
+          <div className="flex gap-6">
+            <div className="text-center">
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">
+                Uploads
+              </p>
+              <p className="text-sm font-bold">{totalUploads}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">
+                Gifts
+              </p>
+              <p className="text-sm font-bold">{totalGifts}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">
+                Active
+              </p>
+              <p className="text-sm font-bold">{activeEvents}</p>
+            </div>
           </div>
-        )}
+        </div>
       </div>
+
+      {eventsLoading ? (
+        <div className="space-y-10">
+          <Skeleton className="h-[400px] w-full rounded-3xl" />
+          <Skeleton className="h-[200px] w-full rounded-3xl" />
+        </div>
+      ) : events.length === 0 ? (
+        <EmptyState
+          title="No events yet"
+          description="Create your first event to start collecting memories with your friends and family."
+          actionLabel="Create My First Event"
+          onAction={() => setIsCreateDialogOpen(true)}
+        />
+      ) : (
+        <>
+          {featuredEvent && (
+            <FeaturedEventHero
+              event={featuredEvent}
+              onView={handleViewEvent}
+              onShare={handleShareEvent}
+            />
+          )}
+
+          <RecentMediaFeed events={events} />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">Your Event Library</h2>
+              <p className="text-xs text-muted-foreground font-medium">
+                {totalEvents} events total
+              </p>
+            </div>
+            <EventList
+              events={events}
+              onView={handleViewEvent}
+              onDelete={handleDeleteEvent}
+              onToggleLock={handleToggleLock}
+              onShare={handleShareEvent}
+            />
+          </div>
+        </>
+      )}
 
       <DeleteEventDialog
         isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog(prev => ({ ...prev, isOpen: false }))}
+        onClose={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
         eventId={deleteDialog.id}
         eventName={deleteDialog.name}
       />
 
       <QuickShareDialog
         isOpen={shareDialog.isOpen}
-        onClose={() => setShareDialog(prev => ({ ...prev, isOpen: false }))}
+        onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
         event={shareDialog.event}
       />
     </div>
