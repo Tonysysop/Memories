@@ -8,7 +8,7 @@ import { useState } from "react";
 interface NativeTabsProps {
   items: {
     id: string;
-    label: string;
+    label: React.ReactNode;
     content: React.ReactNode;
   }[];
   defaultValue?: string;

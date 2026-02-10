@@ -1,27 +1,27 @@
 export type EventType =
-  | 'wedding'
-  | 'birthday'
-  | 'anniversary'
-  | 'graduation'
-  | 'baby-shower'
-  | 'corporate'
-  | 'reunion'
-  | 'other';
+  | "wedding"
+  | "birthday"
+  | "anniversary"
+  | "graduation"
+  | "baby-shower"
+  | "corporate"
+  | "reunion"
+  | "other";
 
 export interface EventUpload {
   id: string;
-  type: 'photo' | 'video' | 'message' | 'gift';
+  type: "photo" | "video" | "message" | "gift";
   content: string; // Base64 for media, text for messages
   guestName?: string;
   createdAt: string;
   isApproved: boolean;
 
   // Gift Fields (aligned with gifts table)
-  amount?: number;
+  giftAmount?: number;
   currency?: string;
-  message?: string;
+  giftMessage?: string;
   paymentRef?: string;
-  status?: 'pending' | 'successful' | 'failed';
+  status?: "pending" | "successful" | "failed";
   senderId?: string;
   isAnonymous?: boolean;
 }
@@ -59,13 +59,32 @@ export interface MemoryEvent {
   isLocationPublic?: boolean;
 }
 
+export interface WizardFormData {
+  name: string;
+  type: EventType;
+  customType?: string;
+  eventDate: string;
+  groomFirstName?: string;
+  groomLastName?: string;
+  brideFirstName?: string;
+  brideLastName?: string;
+  religiousRiteVenue?: string;
+  religiousRiteStartTime?: string;
+  religiousRiteEndTime?: string;
+  receptionVenue?: string;
+  receptionStartTime?: string;
+  receptionEndTime?: string;
+  isLocationPublic: boolean;
+  coverImage: string;
+}
+
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  wedding: 'Wedding',
-  birthday: 'Birthday',
-  anniversary: 'Anniversary',
-  graduation: 'Graduation',
-  'baby-shower': 'Baby Shower',
-  corporate: 'Corporate Event',
-  reunion: 'Reunion',
-  other: 'Other',
+  wedding: "Wedding",
+  birthday: "Birthday",
+  anniversary: "Anniversary",
+  graduation: "Graduation",
+  "baby-shower": "Baby Shower",
+  corporate: "Corporate Event",
+  reunion: "Reunion",
+  other: "Other",
 };

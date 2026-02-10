@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.gifts (
     message TEXT,
     payment_ref TEXT UNIQUE NOT NULL, -- Flutterwave tx_ref
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'successful', 'failed')),
+    is_anonymous BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

@@ -5,15 +5,27 @@ import DeleteEventDialog from "@/components/dashboard/DeleteEventDialog";
 import { Calendar } from "lucide-react";
 import type { MemoryEvent } from "@/types/event";
 import { useState } from "react";
+import QuickShareDialog from "@/components/dashboard/QuickShareDialog";
 
 const DashboardEvents = () => {
   const { events, isLoading: eventsLoading, updateEvent } = useEvents();
   const navigate = useNavigate();
 
-  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; id: string; name: string }>({
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    id: string;
+    name: string;
+  }>({
     isOpen: false,
-    id: '',
-    name: ''
+    id: "",
+    name: "",
+  });
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    event: { id: string; name: string; shareCode: string } | null;
+  }>({
+    isOpen: false,
+    event: null,
   });
 
   const handleViewEvent = (event: MemoryEvent) => {
@@ -21,7 +33,7 @@ const DashboardEvents = () => {
   };
 
   const handleDeleteEvent = (id: string) => {
-    const event = events.find(e => e.id === id);
+    const event = events.find((e) => e.id === id);
     if (event) {
       setDeleteDialog({ isOpen: true, id, name: event.name });
     }
@@ -29,6 +41,13 @@ const DashboardEvents = () => {
 
   const handleToggleLock = (eventId: string, isLocked: boolean) => {
     updateEvent(eventId, { isLocked });
+  };
+
+  const handleShareEvent = (event: MemoryEvent) => {
+    setShareDialog({
+      isOpen: true,
+      event: { id: event.id, name: event.name, shareCode: event.shareCode },
+    });
   };
 
   return (
@@ -61,6 +80,7 @@ const DashboardEvents = () => {
               onView={handleViewEvent}
               onDelete={handleDeleteEvent}
               onToggleLock={handleToggleLock}
+              onShare={handleShareEvent}
             />
           ))}
         </div>
@@ -68,9 +88,15 @@ const DashboardEvents = () => {
 
       <DeleteEventDialog
         isOpen={deleteDialog.isOpen}
-        onClose={() => setDeleteDialog(prev => ({ ...prev, isOpen: false }))}
+        onClose={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
         eventId={deleteDialog.id}
         eventName={deleteDialog.name}
+      />
+
+      <QuickShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
+        event={shareDialog.event}
       />
     </div>
   );

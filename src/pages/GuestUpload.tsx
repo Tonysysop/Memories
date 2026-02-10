@@ -25,7 +25,7 @@ import {
   Clock,
   Calendar,
   Users,
-  ChevronDown
+  ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { MemoryEvent, EventType } from "@/types/event";
@@ -36,43 +36,98 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageTransition from "@/components/PageTransition";
 import { Progress } from "@/components/ui/progress";
 
+interface FlutterwaveResponse {
+  status: "successful" | "error" | "cancelled";
+  transaction_id: string | number;
+  tx_ref: string;
+  [key: string]: unknown;
+}
+
 declare global {
   interface Window {
-    FlutterwaveCheckout: (config: any) => void;
+    FlutterwaveCheckout: (config: {
+      public_key: string;
+      tx_ref: string;
+      amount: number;
+      currency: string;
+      payment_options: string;
+      customer: {
+        email: string;
+        name: string;
+      };
+      customizations: {
+        title: string;
+        description: string;
+        logo: string;
+      };
+      callback: (data: FlutterwaveResponse) => void;
+      onclose: () => void;
+    }) => void;
   }
 }
 
-const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) => {
+interface FeedItem {
+  id: string;
+  type: "photo" | "video" | "message" | "gift" | "group";
+  created_at: string;
+  uploaded_by?: string;
+  name?: string;
+  guestName?: string;
+  message?: string;
+  amount?: number;
+  file_url?: string;
+  isGroup?: boolean;
+  items?: FeedItem[];
+}
+
+const LiveFeed = ({
+  items,
+  isLoading,
+}: {
+  items: FeedItem[];
+  isLoading: boolean;
+}) => {
   if (isLoading) return null;
   if (items.length === 0) return null;
 
   // Grouping logic: Clusters consecutive media items from the same user
-  const groupedItems = items.reduce((acc: any[], current) => {
+  const groupedItems = items.reduce((acc: FeedItem[], current) => {
     const prev = acc[acc.length - 1];
 
     // Criteria for grouping:
     // 1. Same user
     // 2. Both are media (photo/video)
     // 3. Within 5 minutes of each other
-    const isConsecutiveMedia = prev &&
-      (prev.uploaded_by === current.uploaded_by || prev.name === current.name) &&
-      (prev.type === 'photo' || prev.type === 'video') &&
-      (current.type === 'photo' || current.type === 'video') &&
-      Math.abs(new Date(prev.created_at).getTime() - new Date(current.created_at).getTime()) < 5 * 60 * 1000;
+    const isConsecutiveMedia =
+      prev &&
+      (prev.uploaded_by === current.uploaded_by ||
+        prev.name === current.name) &&
+      (prev.type === "photo" || prev.type === "video") &&
+      (current.type === "photo" || current.type === "video") &&
+      Math.abs(
+        new Date(prev.created_at).getTime() -
+          new Date(current.created_at).getTime(),
+      ) <
+        5 * 60 * 1000;
 
     if (isConsecutiveMedia) {
       if (!prev.isGroup) {
         const firstItem = acc.pop();
-        acc.push({
-          id: `group-${firstItem.id}`,
-          type: 'group',
-          uploaded_by: firstItem.uploaded_by,
-          name: firstItem.name,
-          created_at: firstItem.created_at,
-          items: [firstItem, current],
-          isGroup: true
-        });
+        if (firstItem) {
+          acc.push({
+            id: `group-${firstItem.id}`,
+            type: "group",
+            uploaded_by: firstItem.uploaded_by,
+            name: firstItem.name,
+            created_at: firstItem.created_at,
+            items: [firstItem, current],
+            isGroup: true,
+          });
+        } else {
+          acc.push(current);
+        }
       } else {
+        if (!prev.items) prev.items = [];
         prev.items.push(current);
       }
     } else {
@@ -93,56 +148,91 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
             transition={{
               duration: 0.5,
               delay: Math.min(index * 0.1, 0.3),
-              ease: [0.21, 1.11, 0.81, 0.99]
+              ease: [0.21, 1.11, 0.81, 0.99],
             }}
             className="break-inside-avoid mb-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden p-3 shadow-xl hover:bg-white/10 transition-colors"
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[7px] font-bold text-white uppercase ring-1 ring-white/10">
-                {item.guestName?.[0] || item.uploaded_by?.[0] || item.name?.[0] || '?'}
+                {item.guestName?.[0] ||
+                  item.uploaded_by?.[0] ||
+                  item.name?.[0] ||
+                  "?"}
               </div>
               <div className="min-w-0">
                 <p className="text-[9px] font-medium text-white truncate">
-                  {item.guestName || item.uploaded_by || item.name || 'Guest'}
-                  {item.isGroup && <span className="text-white/40 ml-1">captured a moment</span>}
+                  {item.guestName || item.uploaded_by || item.name || "Guest"}
+                  {item.isGroup && (
+                    <span className="text-white/40 ml-1">
+                      captured a moment
+                    </span>
+                  )}
                 </p>
                 <p className="text-[7px] text-white/40">
-                  {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(item.created_at), {
+                    addSuffix: true,
+                  })}
                 </p>
               </div>
             </div>
 
-            {item.type === 'gift' ? (
+            {item.type === "gift" ? (
               <div className="flex flex-col gap-1.5 bg-primary/5 rounded-lg p-2.5 border border-primary/10">
                 <div className="flex items-center gap-2">
                   <Banknote className="w-3.5 h-3.5 text-primary" />
-                  <p className="text-xs text-white/90 font-bold">₦{item.amount?.toLocaleString()}</p>
+                  <p className="text-xs text-white/90 font-bold">
+                    ₦{item.amount?.toLocaleString()}
+                  </p>
                 </div>
-                {item.message && <p className="text-[9px] text-white/70 italic leading-tight">"{item.message}"</p>}
+                {item.message && (
+                  <p className="text-[9px] text-white/70 italic leading-tight">
+                    "{item.message}"
+                  </p>
+                )}
               </div>
-            ) : item.type === 'message' ? (
-              <p className="text-[10px] text-white/80 italic border-l-2 border-primary/40 pl-2.5 py-0.5">"{item.message}"</p>
-            ) : item.type === 'group' ? (
+            ) : item.type === "message" ? (
+              <p className="text-[10px] text-white/80 italic border-l-2 border-primary/40 pl-2.5 py-0.5">
+                "{item.message}"
+              </p>
+            ) : item.type === "group" ? (
               /* Collage View */
-              <div className={`grid gap-1 rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5 ${item.items.length === 2 ? 'grid-cols-2' :
-                item.items.length === 3 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2'
-                }`}>
-                {item.items.slice(0, 4).map((subItem: any, i: number) => (
+              <div
+                className={`grid gap-1 rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5 ${
+                  item.items?.length === 2
+                    ? "grid-cols-2"
+                    : item.items?.length === 3
+                      ? "grid-cols-2 grid-rows-2"
+                      : "grid-cols-2"
+                }`}
+              >
+                {item.items?.slice(0, 4).map((subItem, i: number) => (
                   <div
                     key={subItem.id}
-                    className={`relative overflow-hidden ${item.items.length === 3 && i === 0 ? 'col-span-2 row-span-1 h-24' :
-                      item.items.length === 3 ? 'h-20' :
-                        'h-24'
-                      }`}
+                    className={`relative overflow-hidden ${
+                      item.items?.length === 3 && i === 0
+                        ? "col-span-2 row-span-1 h-24"
+                        : item.items?.length === 3
+                          ? "h-20"
+                          : "h-24"
+                    }`}
                   >
-                    {subItem.type === 'photo' ? (
-                      <img src={subItem.file_url} className="w-full h-full object-cover" alt="Moment" />
+                    {subItem.type === "photo" ? (
+                      <img
+                        src={subItem.file_url}
+                        className="w-full h-full object-cover"
+                        alt="Moment"
+                      />
                     ) : (
-                      <video src={subItem.file_url} className="w-full h-full object-cover" muted playsInline />
+                      <video
+                        src={subItem.file_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
                     )}
-                    {i === 3 && item.items.length > 4 && (
+                    {i === 3 && (item.items?.length ?? 0) > 4 && (
                       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center text-white text-xs font-bold">
-                        +{item.items.length - 4}
+                        +{(item.items?.length ?? 0) - 4}
                       </div>
                     )}
                   </div>
@@ -151,10 +241,22 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
             ) : (
               /* Single Media View */
               <div className="relative rounded-xl overflow-hidden bg-black/40 ring-1 ring-white/5">
-                {item.type === 'photo' ? (
-                  <img src={item.file_url} className="w-full h-auto block hover:scale-105 transition-transform duration-700" alt="Live upload" />
+                {item.type === "photo" ? (
+                  <img
+                    src={item.file_url}
+                    className="w-full h-auto block hover:scale-105 transition-transform duration-700"
+                    alt="Live upload"
+                  />
                 ) : (
-                  <video src={item.file_url} className="w-full h-auto block" controls={false} autoPlay muted loop playsInline />
+                  <video
+                    src={item.file_url}
+                    className="w-full h-auto block"
+                    controls={false}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
                 )}
               </div>
             )}
@@ -165,23 +267,41 @@ const LiveFeed = ({ items, isLoading }: { items: any[], isLoading: boolean }) =>
   );
 };
 
-const FloatingHearts = ({ hearts, onComplete }: { hearts: { id: number, x: number }[], onComplete: (id: number) => void }) => {
+const FloatingHearts = ({
+  hearts,
+  onComplete,
+}: {
+  hearts: {
+    id: number;
+    x: number;
+    xOffset: number;
+    rotation: number;
+    duration: number;
+  }[];
+  onComplete: (id: number) => void;
+}) => {
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
       <AnimatePresence>
         {hearts.map((heart) => (
           <motion.div
             key={heart.id}
-            initial={{ y: "100vh", x: heart.x, opacity: 1, scale: 0.5, rotate: 0 }}
+            initial={{
+              y: "100vh",
+              x: heart.x,
+              opacity: 1,
+              scale: 0.5,
+              rotate: 0,
+            }}
             animate={{
               y: "-10vh",
-              x: heart.x + (Math.random() * 100 - 50),
+              x: heart.x + heart.xOffset,
               opacity: 0,
               scale: 1.5,
-              rotate: Math.random() * 90 - 45
+              rotate: heart.rotation,
             }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 3 + Math.random() * 2, ease: "easeOut" }}
+            transition={{ duration: heart.duration, ease: "easeOut" }}
             onAnimationComplete={() => onComplete(heart.id)}
             className="absolute bottom-0"
           >
@@ -236,9 +356,11 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
           className="flex flex-col items-center bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-3 py-3 sm:px-5 sm:py-4 min-w-[65px] sm:min-w-[80px] shadow-2xl"
         >
           <span className="text-xl sm:text-3xl font-bold text-white tabular-nums leading-none mb-1">
-            {item.value.toString().padStart(2, '0')}
+            {item.value.toString().padStart(2, "0")}
           </span>
-          <span className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/50 font-semibold">{item.label}</span>
+          <span className="text-[8px] sm:text-[10px] uppercase tracking-widest text-white/50 font-semibold">
+            {item.label}
+          </span>
         </div>
       ))}
     </div>
@@ -253,7 +375,7 @@ const RotatingMessages = () => {
     "Ready your cameras for the big event!",
     "Guideline: High-quality photos are preferred! ✨",
     "Uploads open automatically when time's up.",
-    "Share the love through photos and messages."
+    "Share the love through photos and messages.",
   ];
 
   const [index, setIndex] = useState(0);
@@ -288,7 +410,9 @@ const GuestUpload = () => {
   const { toast } = useToast();
   const [memoryEvent, setMemoryEvent] = useState<MemoryEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [guestName, setGuestName] = useState(() => localStorage.getItem("memories_guest_name") || "");
+  const [guestName, setGuestName] = useState(
+    () => localStorage.getItem("memories_guest_name") || "",
+  );
   const [isEditingName, setIsEditingName] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -296,9 +420,19 @@ const GuestUpload = () => {
   const [isCompressing, setIsCompressing] = useState(false);
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [showLiveFeed, setShowLiveFeed] = useState(true);
-  const [hearts, setHearts] = useState<{ id: number, x: number }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [feedItems, setFeedItems] = useState<any[]>([]);
+  const [hearts, setHearts] = useState<
+    {
+      id: number;
+      x: number;
+      xOffset: number;
+      rotation: number;
+      duration: number;
+    }[]
+  >([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {},
+  );
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [isFeedLoading, setIsFeedLoading] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasNewActivity, setHasNewActivity] = useState(false);
@@ -311,7 +445,9 @@ const GuestUpload = () => {
   const [customGiftAmount, setCustomGiftAmount] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [submissionType, setSubmissionType] = useState<'media' | 'message' | 'gift' | null>(null);
+  const [submissionType, setSubmissionType] = useState<
+    "media" | "message" | "gift" | null
+  >(null);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -322,9 +458,13 @@ const GuestUpload = () => {
     }
   }, [guestName]);
 
-  const totalProgress = selectedFiles.length > 0
-    ? Math.round(Object.values(uploadProgress).reduce((acc, curr) => acc + curr, 0) / selectedFiles.length)
-    : 0;
+  const totalProgress =
+    selectedFiles.length > 0
+      ? Math.round(
+          Object.values(uploadProgress).reduce((acc, curr) => acc + curr, 0) /
+            selectedFiles.length,
+        )
+      : 0;
 
   const fireConfetti = useCallback((isFinal: boolean = false) => {
     const duration = isFinal ? 3000 : 1500;
@@ -357,21 +497,24 @@ const GuestUpload = () => {
   const triggerHearts = useCallback(() => {
     const newHearts = Array.from({ length: 15 }).map((_, i) => ({
       id: Date.now() + i,
-      x: Math.random() * window.innerWidth
+      x: Math.random() * window.innerWidth,
+      xOffset: Math.random() * 100 - 50,
+      rotation: Math.random() * 90 - 45,
+      duration: 3 + Math.random() * 2,
     }));
-    setHearts(prev => [...prev, ...newHearts]);
+    setHearts((prev) => [...prev, ...newHearts]);
   }, []);
 
   const removeHeart = useCallback((id: number) => {
-    setHearts(prev => prev.filter(h => h.id !== id));
+    setHearts((prev) => prev.filter((h) => h.id !== id));
   }, []);
 
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY < 100) setHasNewActivity(false);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -380,8 +523,9 @@ const GuestUpload = () => {
 
       // Revert to standard select to fix broken links
       const { data, error } = await supabase
-        .from('events')
-        .select(`
+        .from("events")
+        .select(
+          `
           *,
           groom_first_name,
           groom_last_name,
@@ -394,8 +538,9 @@ const GuestUpload = () => {
           reception_start_time,
           reception_end_time,
           is_location_public
-        `)
-        .eq('slug', shareCode)
+        `,
+        )
+        .eq("slug", shareCode)
         .single();
 
       if (error || !data) {
@@ -409,7 +554,7 @@ const GuestUpload = () => {
         id: data.id,
         hostId: data.user_id,
         name: data.title,
-        type: data.event_type as any as EventType,
+        type: data.event_type as EventType,
         customType: data.custom_type,
         coverImage: data.cover_image,
         shareCode: data.slug,
@@ -433,7 +578,7 @@ const GuestUpload = () => {
         receptionStartTime: data.reception_start_time,
         receptionEndTime: data.reception_end_time,
         isLocationPublic: !!data.is_location_public,
-        uploads: []
+        uploads: [],
       };
 
       setMemoryEvent(mappedEvent);
@@ -441,50 +586,70 @@ const GuestUpload = () => {
 
       // Check for Flutterwave redirect callback
       const urlParams = new URLSearchParams(window.location.search);
-      const transactionId = urlParams.get('transaction_id') || urlParams.get('session_id') || urlParams.get('id');
-      const status = urlParams.get('status');
+      const transactionId =
+        urlParams.get("transaction_id") ||
+        urlParams.get("session_id") ||
+        urlParams.get("id");
+      const status = urlParams.get("status");
 
-      if (transactionId && (status === 'successful' || status === 'completed')) {
+      if (
+        transactionId &&
+        (status === "successful" || status === "completed")
+      ) {
         // Retrieve expected amount from localStorage
-        const storedAmount = localStorage.getItem(`pending_gift_amount_${shareCode}`);
+        const storedAmount = localStorage.getItem(
+          `pending_gift_amount_${shareCode}`,
+        );
         if (storedAmount) {
           handleVerifyGift(transactionId, parseFloat(storedAmount));
           localStorage.removeItem(`pending_gift_amount_${shareCode}`);
         } else {
           // Fallback if localStorage is cleared
-          toast({ title: "Confirming Payment", description: "Verifying your gift...", variant: "default" });
+          toast({
+            title: "Confirming Payment",
+            description: "Verifying your gift...",
+            variant: "default",
+          });
           handleVerifyGift(transactionId, 0);
         }
       }
 
       // Fetch Feed
       const { data: media } = await supabase
-        .from('media')
-        .select('*')
-        .eq('event_id', data.id)
-        .order('created_at', { ascending: false })
+        .from("media")
+        .select("*")
+        .eq("event_id", data.id)
+        .order("created_at", { ascending: false })
         .limit(10);
 
       const { data: messages } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('event_id', data.id)
-        .order('created_at', { ascending: false })
+        .from("messages")
+        .select("*")
+        .eq("event_id", data.id)
+        .order("created_at", { ascending: false })
         .limit(10);
 
       const { data: gifts } = await supabase
-        .from('gifts')
-        .select('*')
-        .eq('event_id', data.id)
-        .eq('status', 'successful')
-        .order('created_at', { ascending: false })
+        .from("gifts")
+        .select("*")
+        .eq("event_id", data.id)
+        .eq("status", "successful")
+        .order("created_at", { ascending: false })
         .limit(10);
 
       const combined = [
-        ...(media || []).map(m => ({ ...m, type: m.file_type })),
-        ...(messages || []).map(m => ({ ...m, type: 'message' })),
-        ...(gifts || []).map(g => ({ ...g, type: 'gift', guestName: g.guest_name }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        ...(media || []).map((m) => ({ ...m, type: m.file_type })),
+        ...(messages || []).map((m) => ({ ...m, type: "message" })),
+        ...(gifts || []).map((g) => ({
+          ...g,
+          type: "gift",
+          guestName: g.guest_name,
+        })),
+      ]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
         .slice(0, 15);
 
       setFeedItems(combined);
@@ -494,46 +659,71 @@ const GuestUpload = () => {
       // Realtime subscription
       const feedChannel = supabase
         .channel(`event-feed-${data.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'media',
-          filter: `event_id=eq.${data.id}`
-        }, (payload) => {
-          setFeedItems(prev => {
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: payload.new.file_type }, ...prev];
-          });
-        })
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `event_id=eq.${data.id}`
-        }, (payload) => {
-          setFeedItems(prev => {
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: 'message' }, ...prev];
-          });
-        })
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'gifts',
-          filter: `event_id=eq.${data.id}`
-        }, (payload) => {
-          if (payload.new.status !== 'successful') return;
-          setFeedItems(prev => {
-            if (prev.some(item => item.id === payload.new.id)) return prev;
-            if (window.scrollY > 400) setHasNewActivity(true);
-            return [{ ...payload.new, type: 'gift', guestName: payload.new.guest_name }, ...prev];
-          });
-        })
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "media",
+            filter: `event_id=eq.${data.id}`,
+          },
+          (payload) => {
+            setFeedItems((prev) => {
+              if (prev.some((item) => item.id === payload.new.id)) return prev;
+              if (window.scrollY > 400) setHasNewActivity(true);
+              return [
+                { ...payload.new, type: payload.new.file_type } as FeedItem,
+                ...prev,
+              ];
+            });
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `event_id=eq.${data.id}`,
+          },
+          (payload) => {
+            setFeedItems((prev) => {
+              if (prev.some((item) => item.id === payload.new.id)) return prev;
+              if (window.scrollY > 400) setHasNewActivity(true);
+              return [{ ...payload.new, type: "message" } as FeedItem, ...prev];
+            });
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*", // Listen to all changes (INSERT/UPDATE) to handle status changes
+            schema: "public",
+            table: "gifts",
+            filter: `event_id=eq.${data.id}`,
+          },
+          (payload) => {
+            const newItem = payload.new as Record<string, unknown>;
+            if (newItem.status !== "successful") return;
+            setFeedItems((prev) => {
+              if (prev.some((item) => item.id === newItem.id)) return prev;
+              if (window.scrollY > 400) setHasNewActivity(true);
+              return [
+                {
+                  ...newItem,
+                  id: newItem.id,
+                  created_at: newItem.created_at,
+                  type: "gift",
+                  guestName: newItem.guest_name,
+                },
+                ...prev,
+              ] as FeedItem[];
+            });
+          },
+        )
         .subscribe((status) => {
-          if (status !== 'SUBSCRIBED') {
-            console.warn('Real-time feed subscription status:', status);
+          if (status !== "SUBSCRIBED") {
+            console.warn("Real-time feed subscription status:", status);
           }
         });
 
@@ -558,54 +748,63 @@ const GuestUpload = () => {
 
     try {
       const { data: media } = await supabase
-        .from('media')
-        .select('*')
-        .eq('event_id', memoryEvent.id)
-        .lt('created_at', oldestItem.created_at)
-        .order('created_at', { ascending: false })
+        .from("media")
+        .select("*")
+        .eq("event_id", memoryEvent.id)
+        .lt("created_at", oldestItem.created_at)
+        .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
 
       const { data: messages } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('event_id', memoryEvent.id)
-        .lt('created_at', oldestItem.created_at)
-        .order('created_at', { ascending: false })
+        .from("messages")
+        .select("*")
+        .eq("event_id", memoryEvent.id)
+        .lt("created_at", oldestItem.created_at)
+        .order("created_at", { ascending: false })
         .limit(PAGE_SIZE);
 
       const combined = [
-        ...(media || []).map(m => ({ ...m, type: m.file_type })),
-        ...(messages || []).map(m => ({ ...m, type: 'message' }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        ...(media || []).map((m) => ({ ...m, type: m.file_type })),
+        ...(messages || []).map((m) => ({ ...m, type: "message" })),
+      ]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
         .slice(0, PAGE_SIZE);
 
       if (combined.length === 0) {
         setHasMore(false);
       } else {
-        setFeedItems(prev => [...prev, ...combined]);
+        setFeedItems((prev) => [...prev, ...combined]);
         setHasMore(combined.length === PAGE_SIZE);
       }
     } catch (error) {
-      console.error('Error loading more items:', error);
+      console.error("Error loading more items:", error);
     } finally {
       setIsLoadingMore(false);
     }
   };
 
-  const isEventStarted = !memoryEvent?.eventDate || new Date(memoryEvent.eventDate) <= new Date();
+  const isEventStarted =
+    !memoryEvent?.eventDate || new Date(memoryEvent.eventDate) <= new Date();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setSelectedFiles(prev => [...prev, ...files]);
+    setSelectedFiles((prev) => [...prev, ...files]);
   };
 
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validateName = () => {
     if (!guestName.trim()) {
-      toast({ title: "Name required", description: "Please enter your name before continuing.", variant: "destructive" });
+      toast({
+        title: "Name required",
+        description: "Please enter your name before continuing.",
+        variant: "destructive",
+      });
       return false;
     }
     return true;
@@ -618,63 +817,81 @@ const GuestUpload = () => {
     setIsCompressing(true);
 
     // Simulate/Prepare compression time
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     setIsCompressing(false);
 
     try {
       const { data: latestEvent, error: fetchError } = await supabase
-        .from('events')
-        .select('is_locked, is_uploads_enabled, event_date')
-        .eq('id', memoryEvent.id)
+        .from("events")
+        .select("is_locked, is_uploads_enabled, event_date")
+        .eq("id", memoryEvent.id)
         .single();
 
-      if (fetchError || !latestEvent) throw new Error("Could not verify event status");
+      if (fetchError || !latestEvent)
+        throw new Error("Could not verify event status");
 
-      const eventStarted = !latestEvent.event_date || new Date(latestEvent.event_date) <= new Date();
+      const eventStarted =
+        !latestEvent.event_date ||
+        new Date(latestEvent.event_date) <= new Date();
       if (!eventStarted) {
-        toast({ title: "Event Not Started", description: "This event hasn't started yet. Please come back later!", variant: "destructive" });
+        toast({
+          title: "Event Not Started",
+          description: "This event hasn't started yet. Please come back later!",
+          variant: "destructive",
+        });
         return;
       }
 
       if (latestEvent.is_locked) {
-        toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        toast({
+          title: "Event Locked",
+          description: "This event is no longer accepting submissions.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) => (prev ? { ...prev, isLocked: true } : null));
         return;
       }
 
       if (!latestEvent.is_uploads_enabled) {
-        toast({ title: "Uploads Disabled", description: "The host has disabled new photo/video uploads.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isUploadsEnabled: false } : null);
+        toast({
+          title: "Uploads Disabled",
+          description: "The host has disabled new photo/video uploads.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) =>
+          prev ? { ...prev, isUploadsEnabled: false } : null,
+        );
         return;
       }
 
       for (const file of selectedFiles) {
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split(".").pop();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
         const filePath = `events/${memoryEvent.id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('event-media')
+          .from("event-media")
           .upload(filePath, file, {
-            onUploadProgress: (progress: any) => {
+            // @ts-expect-error - onUploadProgress is not correctly typed in this version of supabase-js
+            onUploadProgress: (progress) => {
               const percent = (progress.loaded / progress.total) * 100;
-              setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
-            }
-          } as any);
+              setUploadProgress((prev) => ({ ...prev, [file.name]: percent }));
+            },
+          });
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('event-media')
-          .getPublicUrl(filePath);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("event-media").getPublicUrl(filePath);
 
         const { data: mediaEntry, error: dbError } = await supabase
-          .from('media')
+          .from("media")
           .insert({
             event_id: memoryEvent.id,
-            file_type: file.type.startsWith('image/') ? 'photo' : 'video',
+            file_type: file.type.startsWith("image/") ? "photo" : "video",
             file_url: publicUrl,
-            uploaded_by: guestName.trim()
+            uploaded_by: guestName.trim(),
           })
           .select()
           .single();
@@ -683,23 +900,33 @@ const GuestUpload = () => {
 
         // Immediate UI Update
         if (mediaEntry) {
-          setFeedItems(prev => {
-            if (prev.some(item => item.id === mediaEntry.id)) return prev;
-            return [{ ...mediaEntry, type: mediaEntry.file_type }, ...prev].slice(0, 15);
+          setFeedItems((prev) => {
+            if (prev.some((item) => item.id === mediaEntry.id)) return prev;
+            return [
+              { ...mediaEntry, type: mediaEntry.file_type },
+              ...prev,
+            ].slice(0, 15);
           });
         }
       }
 
-      toast({ title: "🎉 Upload complete!", description: `${selectedFiles.length} file(s) uploaded successfully.` });
+      toast({
+        title: "🎉 Upload complete!",
+        description: `${selectedFiles.length} file(s) uploaded successfully.`,
+      });
       setSelectedFiles([]);
       setUploadProgress({});
-      setSubmissionType('media');
+      setSubmissionType("media");
       setIsSubmitted(true);
       fireConfetti(true);
       triggerHearts();
     } catch (error) {
-      console.error('Error uploading media:', error);
-      toast({ title: "Error", description: "Failed to upload files. Please try again.", variant: "destructive" });
+      console.error("Error uploading media:", error);
+      toast({
+        title: "Error",
+        description: "Failed to upload files. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -711,37 +938,54 @@ const GuestUpload = () => {
     setIsSubmitting(true);
     try {
       const { data: latestEvent, error: fetchError } = await supabase
-        .from('events')
-        .select('is_locked, is_messages_enabled, event_date')
-        .eq('id', memoryEvent.id)
+        .from("events")
+        .select("is_locked, is_messages_enabled, event_date")
+        .eq("id", memoryEvent.id)
         .single();
 
-      if (fetchError || !latestEvent) throw new Error("Could not verify event status");
+      if (fetchError || !latestEvent)
+        throw new Error("Could not verify event status");
 
-      const eventStarted = !latestEvent.event_date || new Date(latestEvent.event_date) <= new Date();
+      const eventStarted =
+        !latestEvent.event_date ||
+        new Date(latestEvent.event_date) <= new Date();
       if (!eventStarted) {
-        toast({ title: "Event Not Started", description: "This event hasn't started yet. Please come back later!", variant: "destructive" });
+        toast({
+          title: "Event Not Started",
+          description: "This event hasn't started yet. Please come back later!",
+          variant: "destructive",
+        });
         return;
       }
 
       if (latestEvent.is_locked) {
-        toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        toast({
+          title: "Event Locked",
+          description: "This event is no longer accepting submissions.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) => (prev ? { ...prev, isLocked: true } : null));
         return;
       }
 
       if (!latestEvent.is_messages_enabled) {
-        toast({ title: "Messages Disabled", description: "The host has disabled new guest messages.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isMessagesEnabled: false } : null);
+        toast({
+          title: "Messages Disabled",
+          description: "The host has disabled new guest messages.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) =>
+          prev ? { ...prev, isMessagesEnabled: false } : null,
+        );
         return;
       }
 
       const { data: messageEntry, error } = await supabase
-        .from('messages')
+        .from("messages")
         .insert({
           event_id: memoryEvent.id,
           message: message.trim(),
-          name: guestName.trim()
+          name: guestName.trim(),
         })
         .select()
         .single();
@@ -750,67 +994,88 @@ const GuestUpload = () => {
 
       // Immediate UI Update
       if (messageEntry) {
-        setFeedItems(prev => {
-          if (prev.some(item => item.id === messageEntry.id)) return prev;
-          return [{ ...messageEntry, type: 'message' }, ...prev].slice(0, 15);
+        setFeedItems((prev) => {
+          if (prev.some((item) => item.id === messageEntry.id)) return prev;
+          return [{ ...messageEntry, type: "message" }, ...prev].slice(0, 15);
         });
       }
 
-      toast({ title: "💬 Message sent!", description: "Your message has been added." });
+      toast({
+        title: "💬 Message sent!",
+        description: "Your message has been added.",
+      });
       setMessage("");
       setShowCommentBox(false);
-      setSubmissionType('message');
+      setSubmissionType("message");
       setIsSubmitted(true);
       fireConfetti(true);
       triggerHearts();
     } catch (error) {
-      console.error('Error sending message:', error);
-      toast({ title: "Error", description: "Failed to send message. Please try again.", variant: "destructive" });
+      console.error("Error sending message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleVerifyGift = async (transactionId: string, expectedAmount: number) => {
+  const handleVerifyGift = async (
+    transactionId: string,
+    expectedAmount: number,
+  ) => {
     setIsSubmitting(true);
     try {
-      const { data: result, error: invokeError } = await supabase.functions.invoke('flutterwave-verify', {
-        body: {
-          transaction_id: transactionId,
-          expected_amount: expectedAmount
-        }
-      });
+      const { data: result, error: invokeError } =
+        await supabase.functions.invoke("flutterwave-verify", {
+          body: {
+            transaction_id: transactionId,
+            expected_amount: expectedAmount,
+          },
+        });
 
       if (invokeError) throw invokeError;
 
       if (result.success) {
-        toast({ title: "🎁 Gift Recorded!", description: "Your gift has been confirmed. Thank you!" });
-        setSubmissionType('gift');
+        toast({
+          title: "🎁 Gift Recorded!",
+          description: "Your gift has been confirmed. Thank you!",
+        });
+        setSubmissionType("gift");
         setIsSubmitted(true);
         triggerSuccessEffects();
 
         // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
       } else {
         throw new Error(result.error || "Verification failed");
       }
-    } catch (error: any) {
-      console.error('Error verifying gift:', error);
+    } catch (error) {
+      console.error("Error verifying gift:", error);
 
       // Try to log the detailed response body
-      if (error.context) {
+      if (error instanceof Error && "context" in error) {
         try {
-          const errorBody = await error.context.json();
-          console.error('Verification Error Body:', errorBody);
-        } catch (e) {
-          console.error('Could not parse verification error body');
+          const errorBody = await (
+            error as { context: { json: () => Promise<unknown> } }
+          ).context.json();
+          console.error("Verification Error Body:", errorBody);
+        } catch {
+          console.error("Could not parse verification error body");
         }
       }
 
       toast({
         title: "Verification Notice",
-        description: "Your payment was successful, but we had trouble recording it. The host will still see it on their dashboard.",
-        variant: "destructive"
+        description:
+          "Your payment was successful, but we had trouble recording it. The host will still see it on their dashboard.",
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
@@ -824,8 +1089,22 @@ const GuestUpload = () => {
     const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"];
 
     const frame = () => {
-      confetti({ particleCount: 7, angle: 60, spread: 70, origin: { x: 0, y: 0.8 }, colors, zIndex: 9999 });
-      confetti({ particleCount: 7, angle: 120, spread: 70, origin: { x: 1, y: 0.8 }, colors, zIndex: 9999 });
+      confetti({
+        particleCount: 7,
+        angle: 60,
+        spread: 70,
+        origin: { x: 0, y: 0.8 },
+        colors,
+        zIndex: 9999,
+      });
+      confetti({
+        particleCount: 7,
+        angle: 120,
+        spread: 70,
+        origin: { x: 1, y: 0.8 },
+        colors,
+        zIndex: 9999,
+      });
       if (Date.now() < end) requestAnimationFrame(frame);
     };
     frame();
@@ -834,15 +1113,24 @@ const GuestUpload = () => {
 
   const handleSubmitGift = async () => {
     if (!memoryEvent) return;
-    const finalAmount = giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
+    const finalAmount =
+      giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
 
     if (!finalAmount || finalAmount <= 0) {
-      toast({ title: "Invalid Amount", description: "Please select or enter a valid gift amount.", variant: "destructive" });
+      toast({
+        title: "Invalid Amount",
+        description: "Please select or enter a valid gift amount.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!guestName.trim()) {
-      toast({ title: "Name Required", description: "Please enter your name.", variant: "destructive" });
+      toast({
+        title: "Name Required",
+        description: "Please enter your name.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -850,23 +1138,34 @@ const GuestUpload = () => {
     try {
       // Check event status
       const { data: latestEvent, error: fetchError } = await supabase
-        .from('events')
-        .select('is_locked, is_gifting_enabled')
-        .eq('id', memoryEvent.id)
+        .from("events")
+        .select("is_locked, is_gifting_enabled")
+        .eq("id", memoryEvent.id)
         .single();
 
-      if (fetchError || !latestEvent) throw new Error("Could not verify event status");
+      if (fetchError || !latestEvent)
+        throw new Error("Could not verify event status");
 
       if (latestEvent.is_locked) {
-        toast({ title: "Event Locked", description: "This event is no longer accepting submissions.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isLocked: true } : null);
+        toast({
+          title: "Event Locked",
+          description: "This event is no longer accepting submissions.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) => (prev ? { ...prev, isLocked: true } : null));
         setIsSubmitting(false);
         return;
       }
 
       if (!latestEvent.is_gifting_enabled) {
-        toast({ title: "Gifting Disabled", description: "This event is no longer accepting gifts.", variant: "destructive" });
-        setMemoryEvent(prev => prev ? { ...prev, isGiftingEnabled: false } : null);
+        toast({
+          title: "Gifting Disabled",
+          description: "This event is no longer accepting gifts.",
+          variant: "destructive",
+        });
+        setMemoryEvent((prev) =>
+          prev ? { ...prev, isGiftingEnabled: false } : null,
+        );
         setIsSubmitting(false);
         return;
       }
@@ -886,11 +1185,15 @@ const GuestUpload = () => {
       console.log("Sending Gift Payload:", JSON.stringify(payload, null, 2));
 
       // Save expected amount to localStorage for verification after redirect
-      localStorage.setItem(`pending_gift_amount_${shareCode}`, finalAmount.toString());
+      localStorage.setItem(
+        `pending_gift_amount_${shareCode}`,
+        finalAmount.toString(),
+      );
 
-      const { data: result, error: invokeError } = await supabase.functions.invoke('flutterwave-payment', {
-        body: payload
-      });
+      const { data: result, error: invokeError } =
+        await supabase.functions.invoke("flutterwave-payment", {
+          body: payload,
+        });
 
       if (invokeError) throw invokeError;
 
@@ -900,19 +1203,27 @@ const GuestUpload = () => {
       if (paymentLink) {
         window.location.href = paymentLink;
       } else {
-        throw new Error(result?.error || "Failed to initiate payment: No link returned");
+        throw new Error(
+          result?.error || "Failed to initiate payment: No link returned",
+        );
       }
-    } catch (error: any) {
-      console.error('Error initiating gift:', error);
-      if (error.context) {
+    } catch (error) {
+      console.error("Error initiating gift:", error);
+      if (error instanceof Error && "context" in error) {
         try {
-          const errorBody = await error.context.json();
-          console.error('Function error body:', errorBody);
-        } catch (e) {
-          console.error('Could not parse function error body');
+          const errorBody = await (
+            error as { context: { json: () => Promise<unknown> } }
+          ).context.json();
+          console.error("Function error body:", errorBody);
+        } catch {
+          console.error("Could not parse function error body");
         }
       }
-      toast({ title: "Payment Error", description: "Could not start the payment process. Please try again.", variant: "destructive" });
+      toast({
+        title: "Payment Error",
+        description: "Could not start the payment process. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -945,7 +1256,9 @@ const GuestUpload = () => {
       <div className="min-h-screen flex items-center justify-center bg-black p-4">
         <div className="text-center max-w-md">
           <Heart className="w-16 h-16 mx-auto text-white/40 mb-4" />
-          <h1 className="text-2xl font-display font-semibold text-white mb-2">Event Not Found</h1>
+          <h1 className="text-2xl font-display font-semibold text-white mb-2">
+            Event Not Found
+          </h1>
           <p className="text-white/60">
             This event doesn't exist or the link may be incorrect.
           </p>
@@ -959,7 +1272,9 @@ const GuestUpload = () => {
       <div className="min-h-screen flex items-center justify-center bg-black p-4">
         <div className="text-center max-w-md">
           <Lock className="w-16 h-16 mx-auto text-white/40 mb-4" />
-          <h1 className="text-2xl font-display font-semibold text-white mb-2">Event Locked</h1>
+          <h1 className="text-2xl font-display font-semibold text-white mb-2">
+            Event Locked
+          </h1>
           <p className="text-white/60">
             This event is no longer accepting new uploads.
           </p>
@@ -970,19 +1285,19 @@ const GuestUpload = () => {
 
   const formatEventDate = (dateStr?: string) => {
     if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   const formatEventTime = (timeStr?: string) => {
     if (!timeStr) return "";
-    return new Date(timeStr).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(timeStr).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -1022,7 +1337,9 @@ const GuestUpload = () => {
                 className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-white/5 backdrop-blur-3xl border-l border-white/10 z-[80] p-8 overflow-y-auto shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
               >
                 <div className="flex items-center justify-between mb-12">
-                  <h3 className="text-2xl font-display font-bold text-white tracking-tight">Event Details</h3>
+                  <h3 className="text-2xl font-display font-bold text-white tracking-tight">
+                    Event Details
+                  </h3>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1039,23 +1356,36 @@ const GuestUpload = () => {
                     <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary mb-6">
                       <Calendar className="w-6 h-6" />
                     </div>
-                    <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">The Celebration</h4>
+                    <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">
+                      The Celebration
+                    </h4>
                     <div className="space-y-1">
-                      <p className="text-xl font-bold text-white leading-tight">{memoryEvent.name}</p>
-                      <p className="text-white/60">{formatEventDate(memoryEvent.eventDate)}</p>
+                      <p className="text-xl font-bold text-white leading-tight">
+                        {memoryEvent.name}
+                      </p>
+                      <p className="text-white/60">
+                        {formatEventDate(memoryEvent.eventDate)}
+                      </p>
                     </div>
                   </div>
 
                   {/* Couple Info (if wedding) */}
-                  {memoryEvent.type === 'wedding' && (
+                  {memoryEvent.type === "wedding" && (
                     <div className="space-y-4">
                       <div className="w-12 h-12 rounded-2xl bg-pink-500/20 flex items-center justify-center text-pink-400 mb-6">
                         <Users className="w-6 h-6" />
                       </div>
-                      <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">The Couple</h4>
+                      <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">
+                        The Couple
+                      </h4>
                       <div className="space-y-1">
-                        <p className="text-xl font-bold text-white">{memoryEvent.groomFirstName} & {memoryEvent.brideFirstName}</p>
-                        <p className="text-white/60">{memoryEvent.groomLastName}</p>
+                        <p className="text-xl font-bold text-white">
+                          {memoryEvent.groomFirstName} &{" "}
+                          {memoryEvent.brideFirstName}
+                        </p>
+                        <p className="text-white/60">
+                          {memoryEvent.groomLastName}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1068,12 +1398,24 @@ const GuestUpload = () => {
                         <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 mb-6">
                           <MapPin className="w-6 h-6" />
                         </div>
-                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Ceremony</h4>
+                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">
+                          Ceremony
+                        </h4>
                         <div className="space-y-2">
-                          <p className="text-lg font-bold text-white leading-tight">{memoryEvent.religiousRiteVenue}</p>
+                          <p className="text-lg font-bold text-white leading-tight">
+                            {memoryEvent.religiousRiteVenue}
+                          </p>
                           <div className="flex items-center gap-2 text-white/60 text-sm">
                             <Clock className="w-4 h-4" />
-                            <span>{formatEventTime(memoryEvent.religiousRiteStartTime)} - {formatEventTime(memoryEvent.religiousRiteEndTime)}</span>
+                            <span>
+                              {formatEventTime(
+                                memoryEvent.religiousRiteStartTime,
+                              )}{" "}
+                              -{" "}
+                              {formatEventTime(
+                                memoryEvent.religiousRiteEndTime,
+                              )}
+                            </span>
                           </div>
                           {memoryEvent.isLocationPublic && (
                             <a
@@ -1095,12 +1437,19 @@ const GuestUpload = () => {
                         <div className="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center text-orange-400 mb-6">
                           <Clock className="w-6 h-6" />
                         </div>
-                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Reception</h4>
+                        <h4 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">
+                          Reception
+                        </h4>
                         <div className="space-y-2">
-                          <p className="text-lg font-bold text-white leading-tight">{memoryEvent.receptionVenue}</p>
+                          <p className="text-lg font-bold text-white leading-tight">
+                            {memoryEvent.receptionVenue}
+                          </p>
                           <div className="flex items-center gap-2 text-white/60 text-sm">
                             <Clock className="w-4 h-4" />
-                            <span>From {formatEventTime(memoryEvent.receptionStartTime)}</span>
+                            <span>
+                              From{" "}
+                              {formatEventTime(memoryEvent.receptionStartTime)}
+                            </span>
                           </div>
                           {memoryEvent.isLocationPublic && (
                             <a
@@ -1119,7 +1468,9 @@ const GuestUpload = () => {
                 </div>
 
                 <div className="mt-20 pt-10 border-t border-white/5 text-center">
-                  <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-medium">Powered by Memories</p>
+                  <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-medium">
+                    Powered by Memories
+                  </p>
                 </div>
               </motion.div>
             </>
@@ -1146,21 +1497,26 @@ const GuestUpload = () => {
               <div className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center mx-auto mb-4">
                 <Heart className="w-6 h-6 text-white fill-current" />
               </div>
-              <h1 className="text-3xl font-display font-bold text-white mb-1 tracking-tight">{memoryEvent.name}</h1>
+              <h1 className="text-3xl font-display font-bold text-white mb-1 tracking-tight">
+                {memoryEvent.name}
+              </h1>
               <p className="text-white/60 text-sm">
-                {memoryEvent.type === 'other' && memoryEvent.customType
+                {memoryEvent.type === "other" && memoryEvent.customType
                   ? memoryEvent.customType
                   : EVENT_TYPE_LABELS[memoryEvent.type]}
               </p>
             </div>
 
             {/* Countdown Timer */}
-            {memoryEvent.eventDate && new Date(memoryEvent.eventDate) > new Date() && (
-              <div className="mb-10 flex flex-col items-center animate-in fade-in zoom-in duration-1000 slide-in-from-top-4">
-                <p className="text-white/40 text-[10px] sm:text-xs uppercase tracking-[0.3em] mb-5 font-bold">Event Countdown</p>
-                <CountdownTimer targetDate={memoryEvent.eventDate} />
-              </div>
-            )}
+            {memoryEvent.eventDate &&
+              new Date(memoryEvent.eventDate) > new Date() && (
+                <div className="mb-10 flex flex-col items-center animate-in fade-in zoom-in duration-1000 slide-in-from-top-4">
+                  <p className="text-white/40 text-[10px] sm:text-xs uppercase tracking-[0.3em] mb-5 font-bold">
+                    Event Countdown
+                  </p>
+                  <CountdownTimer targetDate={memoryEvent.eventDate} />
+                </div>
+              )}
 
             {/* Glassmorphism Card */}
             <div className="flex flex-col items-center">
@@ -1181,10 +1537,12 @@ const GuestUpload = () => {
                     </div>
 
                     <h2 className="text-3xl font-display font-bold text-white mb-4 tracking-tight">
-                      {submissionType === 'gift' ? 'Gift Sent!' : 'Memories Shared!'}
+                      {submissionType === "gift"
+                        ? "Gift Sent!"
+                        : "Memories Shared!"}
                     </h2>
                     <p className="text-white/60 text-base leading-relaxed mb-10">
-                      {submissionType === 'gift'
+                      {submissionType === "gift"
                         ? `Thank you for your generous gift to ${memoryEvent.name}. Your support is truly appreciated.`
                         : `Thank you for being part of ${memoryEvent.name}. Your contribution has been added to the collection.`}
                     </p>
@@ -1197,7 +1555,9 @@ const GuestUpload = () => {
                         <Sparkles className="w-5 h-5 text-primary" />
                         Keep Sharing
                       </Button>
-                      <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold">Scroll down to see the feed</p>
+                      <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold">
+                        Scroll down to see the feed
+                      </p>
                     </div>
                   </motion.div>
                 ) : !isEventStarted ? (
@@ -1212,13 +1572,17 @@ const GuestUpload = () => {
                       <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6">
                         <Lock className="w-8 h-8 text-white/50" />
                       </div>
-                      <h2 className="text-xl font-semibold text-white mb-2">Coming Soon</h2>
+                      <h2 className="text-xl font-semibold text-white mb-2">
+                        Coming Soon
+                      </h2>
                       <p className="text-white/60 text-sm leading-relaxed mb-6">
                         Uploads open automatically when event starts.
                       </p>
                       <div className="py-3 px-4 bg-white/5 rounded-full border border-white/10 inline-flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                        <span className="text-xs text-white/80 font-medium tracking-wide">Waiting for host...</span>
+                        <span className="text-xs text-white/80 font-medium tracking-wide">
+                          Waiting for host...
+                        </span>
                       </div>
                     </div>
 
@@ -1233,7 +1597,9 @@ const GuestUpload = () => {
                   >
                     {/* Name Input / Identity Chip */}
                     <div className="space-y-3">
-                      <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold block px-1">Guest Identity</label>
+                      <label className="text-white/80 text-[10px] uppercase tracking-widest font-bold block px-1">
+                        Guest Identity
+                      </label>
                       {guestName && !isEditingName ? (
                         <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 group animate-in fade-in slide-in-from-top-2 duration-300">
                           <div className="flex items-center gap-3">
@@ -1241,8 +1607,12 @@ const GuestUpload = () => {
                               {guestName[0]}
                             </div>
                             <div>
-                              <p className="text-[10px] text-white/40 uppercase font-bold tracking-tight">Posting as</p>
-                              <p className="text-sm font-semibold text-white">{guestName}</p>
+                              <p className="text-[10px] text-white/40 uppercase font-bold tracking-tight">
+                                Posting as
+                              </p>
+                              <p className="text-sm font-semibold text-white">
+                                {guestName}
+                              </p>
                             </div>
                           </div>
                           <Button
@@ -1260,7 +1630,11 @@ const GuestUpload = () => {
                           value={guestName}
                           onChange={(e) => setGuestName(e.target.value)}
                           onBlur={() => guestName && setIsEditingName(false)}
-                          onKeyDown={(e) => e.key === 'Enter' && guestName && setIsEditingName(false)}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" &&
+                            guestName &&
+                            setIsEditingName(false)
+                          }
                           autoFocus={isEditingName}
                           className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-white/20 h-12 rounded-xl transition-all"
                         />
@@ -1304,7 +1678,10 @@ const GuestUpload = () => {
                           /* Grid View for < 5 files */
                           <div className="grid grid-cols-3 gap-2">
                             {selectedFiles.map((file, i) => (
-                              <div key={i} className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group">
+                              <div
+                                key={i}
+                                className="relative aspect-square rounded-xl overflow-hidden ring-1 ring-white/10 group"
+                              >
                                 <img
                                   src={URL.createObjectURL(file)}
                                   alt="Preview"
@@ -1319,7 +1696,10 @@ const GuestUpload = () => {
                                   </button>
                                 ) : (
                                   <div className="absolute inset-x-1 bottom-1">
-                                    <Progress value={uploadProgress[file.name] || 0} className="h-1" />
+                                    <Progress
+                                      value={uploadProgress[file.name] || 0}
+                                      className="h-1"
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -1364,8 +1744,11 @@ const GuestUpload = () => {
                             <Button
                               onClick={handleSubmitMedia}
                               disabled={isSubmitting}
-                              className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg relative overflow-hidden ${isSubmitting ? "w-full bg-primary/20 text-white/50" : "flex-1 bg-primary hover:bg-primary/90 text-white ring-2 ring-primary/20"
-                                }`}
+                              className={`h-12 rounded-xl gap-2 font-semibold transition-all shadow-lg relative overflow-hidden ${
+                                isSubmitting
+                                  ? "w-full bg-primary/20 text-white/50"
+                                  : "flex-1 bg-primary hover:bg-primary/90 text-white ring-2 ring-primary/20"
+                              }`}
                             >
                               {isSubmitting ? (
                                 <>
@@ -1421,7 +1804,10 @@ const GuestUpload = () => {
                               <div className="flex gap-2">
                                 <Button
                                   variant="ghost"
-                                  onClick={() => { setShowCommentBox(false); setMessage(""); }}
+                                  onClick={() => {
+                                    setShowCommentBox(false);
+                                    setMessage("");
+                                  }}
                                   className="flex-1 h-11 rounded-xl text-white/60 hover:text-white hover:bg-white/5"
                                 >
                                   Cancel
@@ -1477,17 +1863,28 @@ const GuestUpload = () => {
                               <Banknote className="w-5 h-5 text-primary" />
                             </div>
                             <div>
-                              <h3 className="text-xl font-display font-bold text-foreground tracking-tight">Send a Gift</h3>
-                              <p className="text-muted-foreground/60 text-[10px] uppercase tracking-wider font-medium">Safe & Secure</p>
+                              <h3 className="text-xl font-display font-bold text-foreground tracking-tight">
+                                Send a Gift
+                              </h3>
+                              <p className="text-muted-foreground/60 text-[10px] uppercase tracking-wider font-medium">
+                                Safe & Secure
+                              </p>
                             </div>
                           </div>
-                          <Button variant="ghost" size="icon" onClick={() => setShowGiftPanel(false)} className="rounded-full w-8 h-8 bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowGiftPanel(false)}
+                            className="rounded-full w-8 h-8 bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                          >
                             <X className="w-4 h-4" />
                           </Button>
                         </div>
 
                         <div className="mb-6 space-y-2">
-                          <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">From</Label>
+                          <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">
+                            From
+                          </Label>
                           <Input
                             placeholder="Enter your full name"
                             value={guestName}
@@ -1498,7 +1895,9 @@ const GuestUpload = () => {
 
                         <div className="space-y-6">
                           <div className="space-y-3">
-                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Select Amount</Label>
+                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">
+                              Select Amount
+                            </Label>
                             <div className="grid grid-cols-2 gap-3">
                               {[1000, 2000, 5000, 10000].map((amount) => (
                                 <button
@@ -1507,13 +1906,18 @@ const GuestUpload = () => {
                                     setGiftAmount(amount);
                                     setCustomGiftAmount("");
                                   }}
-                                  className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${giftAmount === amount
-                                    ? "bg-primary border-primary text-white shadow-lg shadow-primary/25"
-                                    : "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
-                                    }`}
+                                  className={`relative h-14 rounded-2xl font-bold transition-all border flex items-center justify-center gap-1 group overflow-hidden ${
+                                    giftAmount === amount
+                                      ? "bg-primary border-primary text-white shadow-lg shadow-primary/25"
+                                      : "bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
+                                  }`}
                                 >
-                                  <span className="text-[10px] opacity-60 font-medium">₦</span>
-                                  <span className="text-lg tracking-tight">{amount.toLocaleString()}</span>
+                                  <span className="text-[10px] opacity-60 font-medium">
+                                    ₦
+                                  </span>
+                                  <span className="text-lg tracking-tight">
+                                    {amount.toLocaleString()}
+                                  </span>
                                   {giftAmount === amount && (
                                     <motion.div
                                       layoutId="active-glow"
@@ -1528,7 +1932,9 @@ const GuestUpload = () => {
                           </div>
 
                           <div className="relative group">
-                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-serif italic text-lg pointer-events-none group-focus-within:text-primary/70 transition-colors">₦</div>
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-serif italic text-lg pointer-events-none group-focus-within:text-primary/70 transition-colors">
+                              ₦
+                            </div>
                             <Input
                               type="number"
                               placeholder="Enter custom amount"
@@ -1537,12 +1943,14 @@ const GuestUpload = () => {
                                 setCustomGiftAmount(e.target.value);
                                 setGiftAmount(null);
                               }}
-                              className={`pl-10 h-14 bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? 'border-primary/50 bg-primary/5' : ''}`}
+                              className={`pl-10 h-14 bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 text-foreground placeholder:text-muted-foreground/30 rounded-2xl focus:border-primary/50 focus:bg-black/10 dark:focus:bg-white/10 transition-all font-medium text-lg ${customGiftAmount ? "border-primary/50 bg-primary/5" : ""}`}
                             />
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">Gift Message</Label>
+                            <Label className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-[0.2em] pl-1">
+                              Gift Message
+                            </Label>
                             <Textarea
                               placeholder="Add a sweet message for the couple..."
                               value={giftMessage}
@@ -1555,10 +1963,15 @@ const GuestUpload = () => {
                             <Checkbox
                               id="anonymous"
                               checked={isAnonymous}
-                              onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
+                              onCheckedChange={(checked) =>
+                                setIsAnonymous(checked as boolean)
+                              }
                               className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                             />
-                            <Label htmlFor="anonymous" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white/80 cursor-pointer">
+                            <Label
+                              htmlFor="anonymous"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white/80 cursor-pointer"
+                            >
                               Make my gift anonymous
                             </Label>
                           </div>
@@ -1572,11 +1985,15 @@ const GuestUpload = () => {
                             </div>
                             <Button
                               onClick={handleSubmitGift}
-                              disabled={isSubmitting || (!giftAmount && !customGiftAmount)}
-                              className={`w-full h-14 rounded-2xl text-white font-bold text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${!giftAmount && !customGiftAmount
-                                ? "bg-white/10 text-white/20 cursor-not-allowed"
-                                : "bg-gradient-to-r from-primary to-orange-600 hover:shadow-primary/20"
-                                }`}
+                              disabled={
+                                isSubmitting ||
+                                (!giftAmount && !customGiftAmount)
+                              }
+                              className={`w-full h-14 rounded-2xl text-white font-bold text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                                !giftAmount && !customGiftAmount
+                                  ? "bg-white/10 text-white/20 cursor-not-allowed"
+                                  : "bg-gradient-to-r from-primary to-orange-600 hover:shadow-primary/20"
+                              }`}
                             >
                               {isSubmitting ? (
                                 <div className="flex items-center gap-2">
@@ -1584,7 +2001,16 @@ const GuestUpload = () => {
                                   <span>Processing...</span>
                                 </div>
                               ) : (
-                                <span>Send ₦{(giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0)).toLocaleString()} Gift</span>
+                                <span>
+                                  Send ₦
+                                  {(
+                                    giftAmount ||
+                                    (customGiftAmount
+                                      ? parseFloat(customGiftAmount)
+                                      : 0)
+                                  ).toLocaleString()}{" "}
+                                  Gift
+                                </span>
                               )}
                             </Button>
                           </div>
@@ -1599,15 +2025,20 @@ const GuestUpload = () => {
 
           {/* Live Feed Section */}
           {memoryEvent.isLiveFeedEnabled && isEventStarted && (
-            <div ref={feedRef} className="mt-16 w-full max-w-lg space-y-6 mx-auto relative px-4">
+            <div
+              ref={feedRef}
+              className="mt-16 w-full max-w-lg space-y-6 mx-auto relative px-4"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-white/10" />
                 <button
                   onClick={() => setShowLiveFeed(!showLiveFeed)}
                   className="text-white/40 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 hover:text-white transition-colors py-2"
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full bg-red-500 ${showLiveFeed ? 'animate-pulse' : ''}`} />
-                  Live Event Feed {showLiveFeed ? '• On' : '• Off'}
+                  <div
+                    className={`w-1.5 h-1.5 rounded-full bg-red-500 ${showLiveFeed ? "animate-pulse" : ""}`}
+                  />
+                  Live Event Feed {showLiveFeed ? "• On" : "• Off"}
                 </button>
                 <div className="flex-1 h-px bg-white/10" />
               </div>
@@ -1623,7 +2054,12 @@ const GuestUpload = () => {
                   >
                     <Button
                       onClick={() => {
-                        window.scrollTo({ top: feedRef.current?.offsetTop ? feedRef.current.offsetTop - 100 : 0, behavior: 'smooth' });
+                        window.scrollTo({
+                          top: feedRef.current?.offsetTop
+                            ? feedRef.current.offsetTop - 100
+                            : 0,
+                          behavior: "smooth",
+                        });
                         setHasNewActivity(false);
                       }}
                       className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 py-6 shadow-[0_20px_50px_rgba(var(--primary),0.3)] border border-white/20 gap-3 font-bold group"
@@ -1681,7 +2117,9 @@ const GuestUpload = () => {
                   transition={{ delay: 2 }}
                   className="flex flex-col items-center gap-2 pt-12 pb-4 text-white/20"
                 >
-                  <p className="text-[10px] uppercase tracking-[0.2em] font-bold">Swipe to explore feed</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-bold">
+                    Swipe to explore feed
+                  </p>
                   <ChevronDown className="w-4 h-4 animate-bounce" />
                 </motion.div>
               )}

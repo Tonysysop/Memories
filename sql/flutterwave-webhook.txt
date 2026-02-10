@@ -1,0 +1,87 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+serve(async (req) => {
+  try {
+    // 1. SECURITY: Check the Secret Hash
+    const signature = req.headers.get("verif-hash");
+    const MY_SECRET_HASH = Deno.env.get("FLW_WEBHOOK_HASH");
+
+    if (!signature || signature !== MY_SECRET_HASH) {
+      console.error("Unauthorized webhook attempt: hash mismatch or missing");
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    // 2. Parse the payload from Flutterwave
+    const body = await req.json();
+    console.log("Webhook received payload:", JSON.stringify(body, null, 2));
+
+    // 3. Initialize Supabase
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    // 4. Process successful transactions
+    if (
+      body.status === "successful" ||
+      (body.event === "charge.completed" && body.data?.status === "successful")
+    ) {
+      const data = body.data || body; // Flutterwave sends either raw payload or inside 'data'
+      const { amount, tx_ref, currency, customer, meta } = data;
+
+      // Extract metadata (Handling potential stringified JSON if FLW parses it that way)
+      const eventId = meta?.eventId || meta?.event_id;
+      const message = meta?.message || "";
+      const senderId =
+        meta?.consumer_id && meta.consumer_id !== "guest_user"
+          ? meta.consumer_id
+          : null;
+
+      if (!eventId) {
+        console.error("Webhook Error: Missing eventId in metadata", meta);
+        return new Response("Missing eventId", { status: 200 }); // Still 200 to FLW to avoid retries on bad data
+      }
+
+      // 5. Update the 'gifts' table
+      // Use upsert to prevent duplicate records if verification and webhook both run
+      const { error: dbError } = await supabase.from("gifts").upsert(
+        [
+          {
+            event_id: eventId,
+            sender_id: senderId,
+            guest_name: customer?.name || "Guest",
+            amount: amount,
+            currency: currency,
+            message: message,
+            payment_ref: tx_ref,
+            status: "successful",
+          },
+        ],
+        { onConflict: "payment_ref" },
+      );
+
+      if (dbError) {
+        console.error("Database Error in Webhook:", dbError);
+        return new Response(`DB Error: ${dbError.message}`, { status: 400 });
+      }
+
+      console.log(
+        `Webhook processed successfully: ${tx_ref} for Event ${eventId}`,
+      );
+    } else {
+      console.log(
+        "Webhook received but status not successful:",
+        body.status || body.data?.status,
+      );
+    }
+
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("Webhook system error:", err.message);
+    return new Response(`Error: ${err.message}`, { status: 400 });
+  }
+});
