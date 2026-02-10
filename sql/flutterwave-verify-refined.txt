@@ -13,19 +13,33 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const flwSecretKey = Deno.env.get("FLW_SECRET_KEY") ?? "";
+    // --- ENV VARS ---
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const flwSecretKey = Deno.env.get("FLW_SECRET_KEY");
+    const zeptoKey = Deno.env.get("ZEPTOMAIL_API_KEY");
+    const fromAddress = Deno.env.get("ZEPTOMAIL_FROM_ADDRESS");
+    const fromName = Deno.env.get("ZEPTOMAIL_FROM_NAME") || "Memories App";
+
+    if (
+      !supabaseUrl ||
+      !supabaseServiceKey ||
+      !flwSecretKey ||
+      !zeptoKey ||
+      !fromAddress
+    ) {
+      throw new Error("Missing required environment variables");
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { transaction_id, expected_amount } = await req.json();
 
-    if (!transaction_id) {
-      throw new Error("Transaction ID is required");
+    if (!transaction_id || !expected_amount) {
+      throw new Error("transaction_id and expected_amount are required");
     }
 
-    // 1. Verify specific transaction
+    // --- 1. VERIFY FLUTTERWAVE TRANSACTION ---
     const response = await fetch(
       `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
       {
@@ -34,7 +48,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${flwSecretKey}`,
         },
-      },
+      }
     );
 
     const flwData = await response.json();
@@ -45,61 +59,138 @@ serve(async (req) => {
 
     const { status, amount, currency, tx_ref, meta, customer } = flwData.data;
 
-    // 2. Validate payment status and amount
-    if (status === "successful" && amount >= expected_amount) {
-      // Extract metadata defensively
-      const eventId = meta?.eventId || meta?.event_id;
-      const message = meta?.message || "";
-      const senderId =
-        meta?.consumer_id && meta.consumer_id !== "guest_user"
-          ? meta.consumer_id
-          : null;
-
-      if (!eventId) {
-        throw new Error("Verification failed: Missing eventId in metadata");
-      }
-
-      // 3. Update the 'gifts' table (the dedicated table for this feature)
-      // Use upsert to prevent duplicate record errors if verification is retried
-      const { error: dbError } = await supabase.from("gifts").upsert(
-        [
-          {
-            event_id: eventId,
-            sender_id: senderId,
-            guest_name: customer?.name || "Guest",
-            amount: amount,
-            currency: currency,
-            message: message,
-            payment_ref: tx_ref,
-            status: "successful",
-          },
-        ],
-        { onConflict: "payment_ref" },
-      );
-
-      if (dbError) {
-        console.error("Database Insertion Error:", dbError);
-        throw new Error(
-          `Payment verified but failed to save to database: ${dbError.message} (${dbError.code})`,
-        );
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Gift recorded successfully",
-          data: flwData.data,
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        },
-      );
-    } else {
+    if (status !== "successful" || amount < expected_amount) {
       throw new Error(
-        `Verification failed: Expected ${expected_amount}, got ${amount}. Status: ${status}`,
+        `Verification failed: Expected ${expected_amount}, got ${amount}. Status: ${status}`
       );
     }
+
+    // --- 2. EXTRACT METADATA ---
+    const eventId = meta?.eventId || meta?.event_id;
+    const message = meta?.message || "";
+    const senderId =
+      meta?.consumer_id && meta.consumer_id !== "guest_user"
+        ? meta.consumer_id
+        : null;
+
+    if (!eventId) {
+      throw new Error("Missing eventId in payment metadata");
+    }
+
+    // --- 3. UPSERT GIFT RECORD ---
+    const { error: dbError } = await supabase.from("gifts").upsert(
+      [
+        {
+          event_id: eventId,
+          sender_id: senderId,
+          guest_name: customer?.name || "Guest",
+          amount,
+          currency,
+          message,
+          payment_ref: tx_ref,
+          status: "successful",
+        },
+      ],
+      { onConflict: "payment_ref" }
+    );
+
+    if (dbError) {
+      throw new Error(`Database error: ${dbError.message}`);
+    }
+
+    // --- 4. FETCH EVENT + HOST ---
+    const { data: eventData, error: eventError } = await supabase
+      .from("events")
+      .select("title, user_id")
+      .eq("id", eventId)
+      .single();
+
+    if (eventError || !eventData) {
+      throw new Error("Failed to fetch event details");
+    }
+
+    const { title: eventTitle, user_id: userId } = eventData;
+
+    const { data: userData, error: userError } =
+      await supabase.auth.admin.getUserById(userId);
+
+    const hostEmail = userData?.user?.email;
+
+    if (userError || !hostEmail) {
+      throw new Error("Failed to fetch host email");
+    }
+
+    // --- 5. SEND EMAIL VIA ZEPTOMAIL ---
+    const emailPayload = {
+      from: {
+        address: fromAddress.toLowerCase(),
+        name: fromName,
+      },
+      to: [
+        {
+          email_address: {
+            address: hostEmail.toLowerCase(),
+            name: "Event Host",
+          },
+        },
+      ],
+      subject: `🎁 New Gift Received for ${eventTitle}!`,
+      htmlbody: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>You've received a new gift 🎉</h2>
+          <p><strong>Event:</strong> ${eventTitle}</p>
+
+          <div style="background:#f4f4f4;padding:15px;border-radius:8px;margin:20px 0;">
+            <p><strong>Amount:</strong> ${currency} ${amount.toLocaleString()}</p>
+            <p><strong>From:</strong> ${customer?.name || "Guest"}</p>
+            ${
+              message
+                ? `<p><strong>Message:</strong> "${message}"</p>`
+                : ""
+            }
+          </div>
+
+          <p>Log in to your dashboard to view all gifts.</p>
+
+          <hr />
+          <p style="font-size:12px;color:#666;">
+            This is an automated notification from Memories.
+          </p>
+        </div>
+      `,
+    };
+
+    const emailResponse = await fetch(
+      "https://api.zeptomail.com/v1.1/email",
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          authorization: zeptoKey,
+        },
+        body: JSON.stringify(emailPayload),
+      }
+    );
+
+    const emailResult = await emailResponse.json();
+
+    if (!emailResponse.ok) {
+      console.error("ZeptoMail API Error:", emailResult);
+    }
+
+    // --- FINAL RESPONSE ---
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Gift recorded and notification sent",
+        data: flwData.data,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
   } catch (error) {
     console.error("Verify Function Error:", error.message);
     return new Response(
@@ -107,7 +198,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
-      },
+      }
     );
   }
 });
