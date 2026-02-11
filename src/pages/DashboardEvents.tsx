@@ -13,7 +13,7 @@ import { useState } from "react";
 const DashboardEvents = () => {
   const { events, isLoading: eventsLoading, updateEvent } = useEvents();
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
 
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
