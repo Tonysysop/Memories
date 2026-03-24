@@ -1,0 +1,45 @@
+-- 1. Create the payout_requests table
+CREATE TABLE public.payout_requests (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_id UUID REFERENCES public.events(id) ON DELETE CASCADE,
+    host_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    amount NUMERIC NOT NULL,
+    bank_name TEXT NOT NULL,
+    account_number TEXT NOT NULL,
+    account_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'processing', 'paid', 'failed'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    paid_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 2. Enable Row Level Security (RLS)
+ALTER TABLE public.payout_requests ENABLE ROW LEVEL SECURITY;
+
+-- 3. RLS Policies
+-- Hosts can view their own payout requests
+CREATE POLICY "Hosts can view their own payout requests" 
+ON public.payout_requests FOR SELECT 
+USING (auth.uid() = host_id);
+
+-- Hosts can insert their own payout requests
+CREATE POLICY "Hosts can insert their own payout requests" 
+ON public.payout_requests FOR INSERT 
+WITH CHECK (auth.uid() = host_id);
+
+-- Admins can view all payout requests
+-- (We use simple email check for admin role here)
+CREATE POLICY "Admins can view all payout requests" 
+ON public.payout_requests FOR SELECT 
+USING (
+  LOWER(auth.jwt() ->> 'email') = 'admin@memories.com'
+);
+
+-- Admins can update payout requests (to mark them as paid)
+CREATE POLICY "Admins can update payout requests" 
+ON public.payout_requests FOR UPDATE
+USING (
+  LOWER(auth.jwt() ->> 'email') = 'admin@memories.com'
+)
+WITH CHECK (
+  LOWER(auth.jwt() ->> 'email') = 'admin@memories.com'
+);

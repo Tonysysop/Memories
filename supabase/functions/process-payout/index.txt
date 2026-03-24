@@ -1,0 +1,181 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      },
+    );
+
+    // 1. Authenticate caller
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Verify Admin
+    const ADMIN_EMAIL = "admin@memories.com";
+    if (user.email?.toLowerCase() !== ADMIN_EMAIL) {
+      return new Response(JSON.stringify({ error: "Forbidden: Admins only" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 3. Parse Request
+    const { requestId } = await req.json();
+
+    if (!requestId) {
+      return new Response(JSON.stringify({ error: "Missing requestId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    // 4. Fetch the request details
+    const { data: requestData, error: fetchError } = await supabaseAdmin
+      .from("payout_requests")
+      .select("*, events(title, user_id)")
+      .eq("id", requestId)
+      .single();
+
+    if (fetchError || !requestData) {
+      return new Response(
+        JSON.stringify({ error: "Payout request not found" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (requestData.status !== "pending") {
+      return new Response(JSON.stringify({ error: "Payout is not pending" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 5. Update Status to 'paid'
+    const { error: updateError } = await supabaseAdmin
+      .from("payout_requests")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", requestId);
+
+    if (updateError) {
+      console.error("Failed to update status:", updateError);
+      return new Response(
+        JSON.stringify({ error: "Failed to update status" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // 6. Send Email using Zepto
+    let actualEmail = null;
+
+    // Use the event owner's ID (user_id from events table) as the primary source
+    const targetUserId = requestData.events?.user_id || requestData.host_id;
+
+    if (targetUserId) {
+      console.log("Fetching email for target user ID:", targetUserId);
+      const { data: hostUser, error: hostError } =
+        await supabaseAdmin.auth.admin.getUserById(targetUserId);
+      if (hostError) {
+        console.error("Error fetching host user:", hostError);
+      }
+      actualEmail = hostUser?.user?.email || null;
+    }
+
+    if (actualEmail) {
+      try {
+        const zeptoKey = Deno.env.get("ZEPTOMAIL_API_KEY");
+        const fromAddress = Deno.env.get("ZEPTOMAIL_FROM_ADDRESS");
+        const fromName = Deno.env.get("ZEPTOMAIL_FROM_NAME") || "Memories App";
+        const eventTitle = requestData.events?.title || "your event";
+
+        if (zeptoKey && fromAddress) {
+          await fetch("https://api.zeptomail.com/v1.1/email", {
+            method: "POST",
+            headers: {
+              accept: "application/json",
+              "content-type": "application/json",
+              authorization: zeptoKey,
+            },
+            body: JSON.stringify({
+              from: {
+                address: fromAddress.toLowerCase(),
+                name: fromName,
+              },
+              to: [
+                {
+                  email_address: {
+                    address: actualEmail.toLowerCase(),
+                    name: "Event Host",
+                  },
+                },
+              ],
+              subject: `💸 Payout Processed for ${eventTitle}!`,
+              htmlbody: `
+                <div style="font-family: sans-serif; padding: 20px;">
+                  <h2>Your payout has been processed ✨</h2>
+                  <p>Great news! Your payout of <strong>₦${Number(requestData.amount).toLocaleString()}</strong> for your event <strong>${eventTitle}</strong> has been processed successfully.</p>
+                  <p>The funds have been disbursed to your <strong>${requestData.bank_name}</strong> account (${requestData.account_number}).</p>
+                  <p>It may take a short while to reflect in your account depending on your bank.</p>
+                  <hr />
+                  <p style="font-size:12px;color:#666;">
+                    This is an automated message from Memories.
+                  </p>
+                </div>
+              `,
+            }),
+          });
+          console.log("Payout email sent to:", actualEmail);
+        }
+      } catch (emailErr) {
+        console.error("Email sending failed:", emailErr);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Payout processing error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

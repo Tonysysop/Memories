@@ -5,7 +5,7 @@ import DashboardSidebar from "./DashboardSidebar";
 import CreateEventDialog from "./CreateEventDialog";
 import { useEvents } from "@/hooks/useEvent";
 import PageTransition from "@/components/PageTransition";
-import type { EventType } from "@/types/event";
+import type { WizardFormData } from "@/types/event";
 import { cn } from "@/lib/utils";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/auth');
+      navigate("/auth");
     }
   }, [user, authLoading, navigate]);
 
@@ -33,13 +33,7 @@ const DashboardLayout = () => {
     );
   }
 
-  const handleCreateEvent = (data: {
-    name: string;
-    type: EventType;
-    customType?: string;
-    coverImage?: string;
-    eventDate?: string;
-  }) => {
+  const handleCreateEvent = (data: WizardFormData) => {
     createEvent(data);
   };
 
@@ -47,10 +41,20 @@ const DashboardLayout = () => {
     <div className="min-h-screen bg-background">
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-border bg-card/80 backdrop-blur-md z-[40] flex items-center justify-between px-4 lg:hidden">
         <div className="flex items-center gap-2">
-          <img src="/Memories.png" alt="Memories Logo" className="w-8 h-8 object-contain" />
-          <span className="font-display font-semibold text-lg tracking-tight">MEMORIES</span>
+          <img
+            src="/Memories.png"
+            alt="Memories Logo"
+            className="w-8 h-8 object-contain"
+          />
+          <span className="font-display font-semibold text-lg tracking-tight">
+            MEMORIES
+          </span>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsMobileMenuOpen(true)}
+        >
           <Menu className="w-6 h-6" />
         </Button>
       </header>
@@ -101,7 +105,7 @@ const DashboardLayout = () => {
         className={cn(
           "transition-all duration-300 p-6 md:p-8 pt-24 lg:pt-8",
           "ml-0", // Default mobile
-          isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64" // Desktop padding
+          isSidebarCollapsed ? "lg:ml-20" : "lg:ml-64", // Desktop padding
         )}
       >
         <PageTransition>

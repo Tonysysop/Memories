@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
-import Index from "./pages/index"
+import Index from "./pages/index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
@@ -16,12 +16,15 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GuestUpload from "./pages/GuestUpload";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminPayouts from "./pages/admin/Payouts";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
@@ -31,19 +34,25 @@ const AppContent = () => {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <DashboardLayout />
                 </ProtectedRoute>
-              } 
+              }
             >
               <Route index element={<DashboardHome />} />
               <Route path="events" element={<DashboardEvents />} />
               <Route path="event/:id" element={<EventDetail />} />
               <Route path="settings" element={<Settings />} />
             </Route>
+
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="payouts" element={<AdminPayouts />} />
+            </Route>
+
             <Route path="/event/:shareCode" element={<GuestUpload />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
