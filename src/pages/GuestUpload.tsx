@@ -448,6 +448,7 @@ const GuestUpload = () => {
   const [submissionType, setSubmissionType] = useState<
     "media" | "message" | "gift" | null
   >(null);
+  const verificationAttempted = useRef(false);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -508,6 +509,118 @@ const GuestUpload = () => {
   const removeHeart = useCallback((id: number) => {
     setHearts((prev) => prev.filter((h) => h.id !== id));
   }, []);
+
+  const triggerSuccessEffects = useCallback(() => {
+    // Gold Confetti
+    const duration = 3000;
+    const end = Date.now() + duration;
+    const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"];
+
+    const frame = () => {
+      confetti({
+        particleCount: 7,
+        angle: 60,
+        spread: 70,
+        origin: { x: 0, y: 0.8 },
+        colors,
+        zIndex: 9999,
+      });
+      confetti({
+        particleCount: 7,
+        angle: 120,
+        spread: 70,
+        origin: { x: 1, y: 0.8 },
+        colors,
+        zIndex: 9999,
+      });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+    triggerHearts();
+  }, [triggerHearts]);
+
+  const handleVerifyGift = useCallback(
+    async (transactionId: string, expectedAmount: number) => {
+      if (verificationAttempted.current) return;
+      verificationAttempted.current = true;
+
+      setIsSubmitting(true);
+      console.log(
+        `Verifying gift: tx=${transactionId}, expected=${expectedAmount}`,
+      );
+
+      try {
+        const { data: result, error: invokeError } =
+          await supabase.functions.invoke("flutterwave-verify", {
+            body: {
+              transaction_id: transactionId,
+              expected_amount: expectedAmount,
+              is_anonymous:
+                localStorage.getItem(`pending_gift_anonymous_${shareCode}`) ===
+                "true",
+            },
+          });
+
+        if (invokeError) {
+          console.error("Function invocation error:", invokeError);
+          throw invokeError;
+        }
+
+        console.log("Verification result:", result);
+
+        if (result.success) {
+          toast({
+            title: "🎁 Gift Recorded!",
+            description: "Your gift has been confirmed. Thank you!",
+          });
+          setSubmissionType("gift");
+          setIsSubmitted(true);
+          triggerSuccessEffects();
+
+          // Clean up URL and localStorage
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname,
+          );
+          localStorage.removeItem(`pending_gift_amount_${shareCode}`);
+          localStorage.removeItem(`pending_gift_anonymous_${shareCode}`);
+        } else {
+          throw new Error(result.error || "Verification failed");
+        }
+      } catch (error) {
+        console.error("Error verifying gift:", error);
+
+        // Try to log the detailed response body
+        if (error instanceof Error && "context" in error) {
+          try {
+            const errorBody = await (
+              error as { context: { json: () => Promise<unknown> } }
+            ).context.json();
+            console.error("Verification Error Body:", errorBody);
+          } catch {
+            console.error("Could not parse verification error body");
+          }
+        }
+
+        toast({
+          title: "Verification Notice",
+          description:
+            "Your payment was successful, but we had trouble recording it. The host will still see it on their dashboard.",
+          variant: "destructive",
+        });
+
+        // Even if verification "failed" in the frontend UI, if the user sees this, they might have paid.
+        // We should probably still clear the pending amount to avoid loops, but maybe keep it if it's a retryable error.
+        // For now, let's clear it to be safe and avoid multiple verify attempts on page reload.
+        localStorage.removeItem(`pending_gift_amount_${shareCode}`);
+        localStorage.removeItem(`pending_gift_anonymous_${shareCode}`);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [shareCode, toast, triggerSuccessEffects],
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -594,7 +707,8 @@ const GuestUpload = () => {
 
       if (
         transactionId &&
-        (status === "successful" || status === "completed")
+        (status === "successful" || status === "completed") &&
+        !verificationAttempted.current
       ) {
         // Retrieve expected amount from localStorage
         const storedAmount = localStorage.getItem(
@@ -602,15 +716,6 @@ const GuestUpload = () => {
         );
         if (storedAmount) {
           handleVerifyGift(transactionId, parseFloat(storedAmount));
-          localStorage.removeItem(`pending_gift_amount_${shareCode}`);
-        } else {
-          // Fallback if localStorage is cleared
-          toast({
-            title: "Confirming Payment",
-            description: "Verifying your gift...",
-            variant: "default",
-          });
-          handleVerifyGift(transactionId, 0);
         }
       }
 
@@ -643,7 +748,7 @@ const GuestUpload = () => {
         ...(gifts || []).map((g) => ({
           ...g,
           type: "gift",
-          guestName: g.guest_name,
+          guestName: g.is_anonymous ? "Anonymous" : g.guest_name,
         })),
       ]
         .sort(
@@ -714,7 +819,9 @@ const GuestUpload = () => {
                   id: newItem.id,
                   created_at: newItem.created_at,
                   type: "gift",
-                  guestName: newItem.guest_name,
+                  guestName: newItem.is_anonymous
+                    ? "Anonymous"
+                    : newItem.guest_name,
                 },
                 ...prev,
               ] as FeedItem[];
@@ -733,7 +840,7 @@ const GuestUpload = () => {
     };
 
     fetchEventAndFeed();
-  }, [shareCode]);
+  }, [shareCode, handleVerifyGift]);
 
   const handleLoadMore = async () => {
     if (!memoryEvent || isLoadingMore || !hasMore) return;
@@ -1022,99 +1129,14 @@ const GuestUpload = () => {
     }
   };
 
-  const handleVerifyGift = async (
-    transactionId: string,
-    expectedAmount: number,
-  ) => {
-    setIsSubmitting(true);
-    try {
-      const { data: result, error: invokeError } =
-        await supabase.functions.invoke("flutterwave-verify", {
-          body: {
-            transaction_id: transactionId,
-            expected_amount: expectedAmount,
-          },
-        });
-
-      if (invokeError) throw invokeError;
-
-      if (result.success) {
-        toast({
-          title: "🎁 Gift Recorded!",
-          description: "Your gift has been confirmed. Thank you!",
-        });
-        setSubmissionType("gift");
-        setIsSubmitted(true);
-        triggerSuccessEffects();
-
-        // Clean up URL
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname,
-        );
-      } else {
-        throw new Error(result.error || "Verification failed");
-      }
-    } catch (error) {
-      console.error("Error verifying gift:", error);
-
-      // Try to log the detailed response body
-      if (error instanceof Error && "context" in error) {
-        try {
-          const errorBody = await (
-            error as { context: { json: () => Promise<unknown> } }
-          ).context.json();
-          console.error("Verification Error Body:", errorBody);
-        } catch {
-          console.error("Could not parse verification error body");
-        }
-      }
-
-      toast({
-        title: "Verification Notice",
-        description:
-          "Your payment was successful, but we had trouble recording it. The host will still see it on their dashboard.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const triggerSuccessEffects = () => {
-    // Gold Confetti
-    const duration = 3000;
-    const end = Date.now() + duration;
-    const colors = ["#E60023", "#FFD700", "#FFFFFF", "#FFA500"];
-
-    const frame = () => {
-      confetti({
-        particleCount: 7,
-        angle: 60,
-        spread: 70,
-        origin: { x: 0, y: 0.8 },
-        colors,
-        zIndex: 9999,
-      });
-      confetti({
-        particleCount: 7,
-        angle: 120,
-        spread: 70,
-        origin: { x: 1, y: 0.8 },
-        colors,
-        zIndex: 9999,
-      });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
-    triggerHearts();
-  };
-
   const handleSubmitGift = async () => {
     if (!memoryEvent) return;
     const finalAmount =
-      giftAmount || (customGiftAmount ? parseFloat(customGiftAmount) : 0);
+      giftAmount !== null
+        ? giftAmount
+        : customGiftAmount
+          ? parseFloat(customGiftAmount)
+          : 0;
 
     if (!finalAmount || finalAmount <= 0) {
       toast({
@@ -1177,17 +1199,22 @@ const GuestUpload = () => {
         email: memoryEvent.hostEmail || "anthonyosunde45@gmail.com",
         name: guestName.trim(),
         user_id: memoryEvent.hostId || "guest_user",
-        redirect_url: window.location.href, // Pass the current page URL for redirect
-        eventId: memoryEvent.id, // For metadata
-        message: giftMessage.trim(), // For metadata
+        redirect_url: window.location.href,
+        eventId: memoryEvent.id,
+        message: giftMessage.trim(),
+        is_anonymous: isAnonymous,
       };
 
       console.log("Sending Gift Payload:", JSON.stringify(payload, null, 2));
 
-      // Save expected amount to localStorage for verification after redirect
+      // Save expected amount and anonymous preference to localStorage for verification after redirect
       localStorage.setItem(
         `pending_gift_amount_${shareCode}`,
         finalAmount.toString(),
+      );
+      localStorage.setItem(
+        `pending_gift_anonymous_${shareCode}`,
+        isAnonymous.toString(),
       );
 
       const { data: result, error: invokeError } =
@@ -1899,7 +1926,7 @@ const GuestUpload = () => {
                               Select Amount
                             </Label>
                             <div className="grid grid-cols-2 gap-3">
-                              {[1000, 2000, 5000, 10000].map((amount) => (
+                              {[200, 2000, 5000, 10000].map((amount) => (
                                 <button
                                   key={amount}
                                   onClick={() => {

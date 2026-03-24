@@ -161,7 +161,12 @@ const Auth = () => {
         });
         if (error) throw error;
         toast.success("Welcome back!");
-        navigate("/dashboard");
+        
+        if (data.email.toLowerCase() === "admin@memories.com") {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         const { data: authData, error } = await supabase.auth.signUp({
           email: data.email,

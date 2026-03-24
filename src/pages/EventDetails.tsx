@@ -27,6 +27,11 @@ import {
   Banknote,
   Gift,
   Mail,
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -40,6 +45,7 @@ import { supabase } from "@/lib/supabase";
 import { Lightbox } from "@/components/Lightbox";
 import { AnimatePresence, motion } from "framer-motion";
 import { WizardForm } from "@/components/WizardForm";
+import { RequestPayoutDialog } from "@/components/dashboard/RequestPayoutDialog";
 
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,8 +84,29 @@ const EventDetail = () => {
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+  const [payoutStatus, setPayoutStatus] = useState<"pending" | "paid" | null>(null);
+  const [isGiftsExpanded, setIsGiftsExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const ITEMS_PER_PAGE = 12;
+
+  const fetchPayoutStatus = async (eventId: string) => {
+    try {
+      const { data } = await supabase
+        .from("payout_requests")
+        .select("status")
+        .eq("event_id", eventId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setPayoutStatus(data.status as "pending" | "paid");
+      }
+    } catch {
+      setPayoutStatus(null);
+    }
+  };
 
   const fetchUploads = async (eventId: string, pageNum: number = 0) => {
     try {
@@ -205,9 +232,11 @@ const EventDetail = () => {
       if (initialEvent) {
         setEvent(initialEvent);
         fetchUploads(initialEvent.id);
+        fetchPayoutStatus(initialEvent.id);
       }
     }
-  }, [id, events]); // added events dependencies so it updates when useEvents loads
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, events]); // removing getEventById to prevent infinite loop
 
   if (authLoading || !event) {
     return (
@@ -766,9 +795,9 @@ const EventDetail = () => {
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center justify-between mb-6">
+                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center shrink-0">
                                 <Banknote className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                               </div>
                               <div>
@@ -780,9 +809,55 @@ const EventDetail = () => {
                                 </p>
                               </div>
                             </div>
+                            {payoutStatus === "paid" ? (
+                              <Badge variant="outline" className="sm:w-auto w-full justify-center bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 text-sm py-2 px-4">
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                Payout Received
+                              </Badge>
+                            ) : payoutStatus === "pending" ? (
+                              <Badge variant="outline" className="sm:w-auto w-full justify-center bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 text-sm py-2 px-4 shadow-sm">
+                                <Clock className="w-4 h-4 mr-2" />
+                                Payout Pending
+                              </Badge>
+                            ) : (
+                              <Button
+                                onClick={() => setIsPayoutModalOpen(true)}
+                                className="sm:w-auto w-full gap-2 shadow-sm font-semibold"
+                                disabled={totalGiftsAmount <= 0}
+                              >
+                                <CreditCard className="w-4 h-4" />
+                                Request Payout
+                              </Button>
+                            )}
                           </div>
 
-                          {gifts.map((gift) => (
+                          <div className="border border-border rounded-xl bg-card overflow-hidden shadow-sm">
+                            <button
+                              onClick={() => setIsGiftsExpanded(!isGiftsExpanded)}
+                              className="w-full flex items-center justify-between p-5 hover:bg-muted/50 transition-colors text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                  <Gift className="w-4 h-4 text-primary" />
+                                </div>
+                                <span className="font-semibold text-foreground">View Gift History</span>
+                              </div>
+                              <div className="bg-muted p-1.5 rounded-md">
+                                {isGiftsExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                              </div>
+                            </button>
+                            
+                            <AnimatePresence>
+                              {isGiftsExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="p-5 pt-0 border-t border-border mt-2 space-y-4">
+                                    {gifts.map((gift) => (
                             <div
                               key={gift.id}
                               className="group relative bg-card border border-border rounded-xl p-5 shadow-sm flex items-start gap-4"
@@ -820,6 +895,11 @@ const EventDetail = () => {
                               </div>
                             </div>
                           ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -866,6 +946,15 @@ const EventDetail = () => {
             />
           </DialogContent>
         </Dialog>
+
+        <RequestPayoutDialog
+          isOpen={isPayoutModalOpen}
+          onClose={() => setIsPayoutModalOpen(false)}
+          onSuccess={() => fetchPayoutStatus(event.id)}
+          totalAmount={totalGiftsAmount}
+          eventId={event.id}
+          hostId={event.hostId}
+        />
       </main>
 
       <Lightbox
